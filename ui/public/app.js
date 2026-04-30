@@ -98,6 +98,47 @@ async function loadAll() {
   render();
 }
 
+async function refreshEmails() {
+  const btn = $('refreshEmailsBtn');
+  const status = $('inboxStatus');
+  if (!btn || !status) return;
+  btn.disabled = true;
+  const orig = btn.textContent;
+  btn.textContent = '↻ Refreshing…';
+  status.hidden = false;
+  status.className = 'inbox-status pending';
+  status.textContent = 'Running Gmail search via Claude CLI… first run can take 5–8 minutes; subsequent runs are faster.';
+  try {
+    const r = await fetch('/api/emails/refresh', { method: 'POST' });
+    const j = await r.json();
+    if (!r.ok || !j.ok) {
+      status.className = 'inbox-status error';
+      const hint = j.hint ? `\n\nHint: ${j.hint}` : '';
+      status.textContent = `Refresh failed: ${j.error || 'unknown error'}${hint}`;
+      return;
+    }
+    status.className = 'inbox-status ok';
+    status.textContent = `Refreshed: ${j.companyCount} companies, ${j.threadCount} threads. ${j.summary || ''}`;
+    // Refetch and re-render
+    const fresh = await fetch('/api/emails').then((x) => x.json()).catch(() => null);
+    if (fresh) {
+      state.emailsByCompany = fresh.byCompany || {};
+      state.emailsFetchedAt = fresh.fetchedAt;
+      renderInbox();
+    }
+  } catch (e) {
+    status.className = 'inbox-status error';
+    status.textContent = `Refresh failed: ${e.message}`;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = orig;
+  }
+}
+
+document.addEventListener('click', (ev) => {
+  if (ev.target && ev.target.id === 'refreshEmailsBtn') refreshEmails();
+});
+
 function sortedRows(rows) {
   const out = [...rows];
   switch (state.sort) {

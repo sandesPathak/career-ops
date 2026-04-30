@@ -829,3 +829,28 @@ h1,h2,h3,h4,h5 { margin: 0; font-weight: 700; letter-spacing: -0.02em; }
   .three-col { grid-template-columns: 1fr; }
   .filters { display: none; }
 }
+
+/* Refresh button + status banner (added 0.3.0) */
+.refresh-btn {
+  align-self: center;
+  background: var(--bg-elev, #1a1d24);
+  color: var(--fg, #e6e8eb);
+  border: 1px solid var(--border, #2a2f38);
+  border-radius: 6px;
+  padding: 6px 12px;
+  font: 600 13px/1 inherit;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.refresh-btn:hover:not(:disabled) { background: var(--bg-hover, #232730); }
+.refresh-btn:disabled { opacity: 0.6; cursor: progress; }
+.inbox-status {
+  margin: 0 0 14px 0;
+  padding: 10px 12px;
+  border-radius: 6px;
+  font: 13px/1.4 inherit;
+  white-space: pre-wrap;
+}
+.inbox-status.pending { background: rgba(96,165,250,0.10); border: 1px solid rgba(96,165,250,0.35); color: #93c5fd; }
+.inbox-status.ok      { background: rgba(34,197,94,0.10);  border: 1px solid rgba(34,197,94,0.35);  color: #86efac; }
+.inbox-status.error   { background: rgba(239,68,68,0.10);  border: 1px solid rgba(239,68,68,0.35);  color: #fca5a5; }

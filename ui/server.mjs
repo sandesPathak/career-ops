@@ -2,6 +2,10 @@ import { createServer } from 'node:http';
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { dirname, join, resolve, extname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { spawn } from 'node:child_process';
+import { promisify } from 'node:util';
+import { execFile as _execFile } from 'node:child_process';
+const execFile = promisify(_execFile);
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, '..');
@@ -248,6 +252,86 @@ async function handle(req, res) {
     parsed.byCompany = enrichedByCompany;
     parsed._source = source;
     send(res, 200, JSON.stringify(parsed), 'application/json; charset=utf-8');
+    return;
+  }
+
+  if (url.pathname === '/api/emails/refresh' && req.method === 'POST') {
+    try {
+      // Find the claude CLI on PATH (or via $CLAUDE_BIN env)
+      let claudeBin = process.env.CLAUDE_BIN || '';
+      if (!claudeBin) {
+        try {
+          const { stdout } = await execFile('which', ['claude']);
+          claudeBin = stdout.trim();
+        } catch {}
+      }
+      if (!claudeBin) {
+        send(res, 500, JSON.stringify({
+          error: 'claude CLI not found on PATH',
+          hint: 'Install Claude Code (https://docs.claude.com/code), then set $CLAUDE_BIN or rerun this from a shell where `claude` is on PATH.',
+        }), 'application/json');
+        return;
+      }
+
+      const promptPath = join(ROOT, 'tools', 'email-refresh', 'prompt.md');
+      const cacheFile = join(SUPPORT_DIR, 'emails-cache.json');
+      let prompt;
+      try { prompt = await readFile(promptPath, 'utf8'); }
+      catch {
+        send(res, 500, JSON.stringify({
+          error: 'tools/email-refresh/prompt.md not found',
+          hint: 'This file ships with the repo — check that you cloned the full tree.',
+        }), 'application/json');
+        return;
+      }
+
+      await mkdir(SUPPORT_DIR, { recursive: true });
+
+      // Spawn claude headless. Stream output to logs but cap wait at 4 minutes.
+      const child = spawn(claudeBin, [
+        '--print',
+        '--permission-mode', 'bypassPermissions',
+        '--allowed-tools', 'mcp__claude_ai_Gmail__search_threads,mcp__claude_ai_Gmail__get_thread,Read,Write,Edit,Bash',
+        '--append-system-prompt', 'Headless cache refresh. Be terse. No questions.',
+        prompt,
+      ], {
+        env: { ...process.env, CACHE_FILE: cacheFile },
+        stdio: ['ignore', 'pipe', 'pipe'],
+      });
+
+      let stdout = '', stderr = '';
+      child.stdout.on('data', (d) => { stdout += d; });
+      child.stderr.on('data', (d) => { stderr += d; });
+
+      // Gmail searches with MCP can take 5–8 min on a busy inbox the first time.
+      const timeout = setTimeout(() => child.kill('SIGTERM'), 8 * 60 * 1000);
+      const code = await new Promise((r) => child.on('close', r));
+      clearTimeout(timeout);
+
+      if (code !== 0) {
+        send(res, 500, JSON.stringify({
+          error: `claude exited ${code}`,
+          stderr: (stderr || '').slice(-2000),
+          stdout: (stdout || '').slice(-2000),
+          hint: 'Most common cause: Gmail MCP not authenticated. Run `claude` interactively, type /mcp, and connect Gmail.',
+        }), 'application/json');
+        return;
+      }
+
+      // Read the cache the prompt just wrote
+      let cache = { byCompany: {}, fetchedAt: null };
+      try { cache = JSON.parse(await readFile(cacheFile, 'utf8')); } catch {}
+      const summary = (stdout || '').trim().split('\n').pop() || 'refresh complete';
+      send(res, 200, JSON.stringify({
+        ok: true,
+        summary,
+        fetchedAt: cache.fetchedAt,
+        companyCount: Object.keys(cache.byCompany || {}).length,
+        threadCount: Object.values(cache.byCompany || {}).reduce((n, l) => n + l.length, 0),
+      }), 'application/json; charset=utf-8');
+    } catch (e) {
+      send(res, 500, JSON.stringify({ error: e.message }), 'application/json');
+    }
     return;
   }
 

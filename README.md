@@ -64,6 +64,21 @@ Use whichever you prefer. If you only use one, the other two directories are har
 
 `npm run update:check` polls `update-system.mjs`'s canonical-repo URL (defaults to this fork's repo) for newer versions. If you maintain your own fork of this fork, edit the `CANONICAL_REPO` constant in `update-system.mjs` to point at yours.
 
+## Email integration (optional)
+
+The UI's **Inbox** tab triages recruiter responses (offers, rejections, interview requests, applied-acks) by reading a JSON cache populated from your Gmail. To enable:
+
+1. **Connect Gmail to Claude Code.** Run `claude` interactively, type `/mcp`, and authenticate the **Gmail** integration. (Same flow as Drive, Calendar.)
+2. **Pick how to refresh** — pull, push, or both:
+   - **Manual (UI button):** open the UI (`npm run ui` → http://localhost:4173), go to Inbox, click **↻ Refresh**. The first run takes 5–8 min on a busy inbox; subsequent runs ~30–90 sec.
+   - **Hourly (launchd, macOS only):** `bash tools/email-refresh/install.sh` schedules an hourly background refresh. Logs at `~/Library/Application Support/career-ops-refresh/email-refresh.log`. Uninstall: `bash tools/email-refresh/uninstall.sh`.
+3. **Verify.** Cache lands at `~/Library/Application Support/career-ops-refresh/emails-cache.json` (macOS) or `$XDG_CACHE_HOME/career-ops-refresh/emails-cache.json` (Linux). The Inbox tab in the UI reads it and groups threads by company.
+
+If the Refresh button errors with **"claude CLI not found on PATH"** → install Claude Code globally (`npm install -g @anthropic-ai/claude-code` or follow the docs).
+If it errors with **claude exit 143 / 1 / Gmail MCP not authenticated** → run `claude`, type `/mcp`, connect Gmail, retry.
+
+The classifier (intent matching: offer / rejection / interview-request / applied-ack) lives in `ui/server.mjs` — pure regex, no LLM cost on read.
+
 ## Memory
 
 When you run career-ops via Claude Code, the assistant builds up notes about your preferences in a project-local memory directory (`~/.claude/projects/<sanitized-cwd>/memory/`). It's per-machine, never synced, never in the repo. Each new clone starts with an empty memory — that's intentional. The system gets smarter the more you use it.

@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.3.0] — 2026-04-30
+
+UI Inbox refresh + email setup docs.
+
+- **New:** **↻ Refresh** button in the UI Inbox tab. Spawns `claude --print` headless with Gmail MCP, writes to the cache file, re-renders the inbox. Shows progress + clear errors (CLI not found / Gmail not authed).
+- **New:** `POST /api/emails/refresh` endpoint in `ui/server.mjs`. 8-minute timeout for first-run Gmail searches.
+- **README:** "Email integration" section explains 3 setup paths — manual button, hourly launchd, or just `bash tools/email-refresh/run.sh`. Failure modes documented inline.
+
+
 ## [0.2.0] — 2026-04-30
 
 Friction fixes for new contributors based on a fresh-clone audit.
