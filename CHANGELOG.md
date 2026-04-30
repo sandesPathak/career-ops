@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.5.0] — 2026-04-30
+
+UI: "Open posting" + "Open report" actually work now.
+
+- **Open posting** now resolves a JD URL from multiple sources in priority: report markdown's `**URL:**` line → `https://...` URLs in the notes column → `URL: jobs.ashbyhq.com/...` (scheme-less) prefix in notes. Falls back to a clear toast when no URL exists, instead of silently doing nothing.
+- **Open report** handles 404 gracefully — surfaces a toast with the missing path + offers to open the JD via notes URL if available, instead of putting "not found" into the modal body.
+- **Buttons disable correctly** when there's no underlying data (n/a report, no notes URLs), with a tooltip explaining why.
+- **Toast banner** for action errors (`#uiToast`) — replaces silent failures across the app.
+- `extractUrls()` strips trailing punctuation (`.,;:!?'"`) so URLs at sentence ends don't 404.
+
+
 ## [0.4.0] — 2026-04-30
 
 Don't miss rejections.

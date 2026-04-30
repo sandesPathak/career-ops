@@ -854,3 +854,17 @@ h1,h2,h3,h4,h5 { margin: 0; font-weight: 700; letter-spacing: -0.02em; }
 .inbox-status.pending { background: rgba(96,165,250,0.10); border: 1px solid rgba(96,165,250,0.35); color: #93c5fd; }
 .inbox-status.ok      { background: rgba(34,197,94,0.10);  border: 1px solid rgba(34,197,94,0.35);  color: #86efac; }
 .inbox-status.error   { background: rgba(239,68,68,0.10);  border: 1px solid rgba(239,68,68,0.35);  color: #fca5a5; }
+
+/* Toast for action errors (added 0.5.0) */
+.ui-toast {
+  position: fixed; left: 50%; bottom: 30px; transform: translateX(-50%) translateY(20px);
+  max-width: 600px; padding: 12px 18px; border-radius: 8px;
+  background: #111; color: #eaeaea; border: 1px solid #2a2f38;
+  font: 14px/1.4 inherit; box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  opacity: 0; pointer-events: none; transition: opacity .18s, transform .18s;
+  z-index: 1000; white-space: pre-wrap;
+}
+.ui-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); pointer-events: auto; }
+.ui-toast[data-kind="warn"]  { border-color: rgba(234,179,8,0.6);  background: rgba(60,40,0,0.95); }
+.ui-toast[data-kind="error"] { border-color: rgba(239,68,68,0.6); background: rgba(60,15,15,0.95); }
+.btn[disabled] { opacity: 0.45; cursor: not-allowed; }

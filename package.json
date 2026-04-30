@@ -1,6 +1,6 @@
 {
   "name": "career-ops",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "AI-powered job search pipeline built on Claude Code",
   "scripts": {
     "postinstall": "playwright install chromium --with-deps 2>/dev/null || playwright install chromium",

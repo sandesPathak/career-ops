@@ -118,9 +118,27 @@ function parseApplications(md) {
       pdf: pdf === '✅',
       reportPath: reportMatch ? reportMatch[1] : null,
       notes,
+      // URLs we can extract from the notes column. Used by "Open posting" so it
+      // works even for rows with no report file (n/a in the report column).
+      // Catches both `https://...` and `URL: jobs.ashbyhq.com/...` (scheme-less)
+      // patterns common in tracker notes.
+      urls: extractUrls(notes),
     });
   }
   return rows;
+}
+
+function extractUrls(text) {
+  if (!text) return [];
+  const urls = [];
+  const clean = (u) => u.replace(/[.,;:!?)\]'"`]+$/, ''); // strip trailing punctuation
+  for (const m of text.matchAll(/https?:\/\/[^\s|)<>"]+/g)) urls.push(clean(m[0]));
+  for (const m of text.matchAll(/URL:\s*([^\s|)<>"]+)/gi)) {
+    const u = clean(m[1]);
+    const withScheme = /^https?:\/\//.test(u) ? u : 'https://' + u;
+    if (!urls.includes(withScheme) && !urls.includes(u)) urls.push(withScheme);
+  }
+  return urls;
 }
 
 function safeJoin(base, path) {

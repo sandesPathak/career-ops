@@ -320,8 +320,8 @@ function renderDetail() {
     </div>
 
     <div class="action-row">
-      ${r.reportPath ? `<button class="btn btn-primary" data-act="report">Open report</button>` : ''}
-      <button class="btn" data-act="jd">Open posting</button>
+      ${r.reportPath ? `<button class="btn btn-primary" data-act="report">Open report</button>` : `<button class="btn btn-primary" data-act="report" disabled title="No report on file for this row (report column is 'n/a').">Open report</button>`}
+      <button class="btn" data-act="jd"${(r.reportPath || (r.urls && r.urls.length)) ? '' : ' disabled title="No JD URL found in notes or report"'}>Open posting</button>
       ${r.reportPath ? `<button class="btn" data-act="copy-report">Copy report path</button>` : ''}
     </div>
 
@@ -565,9 +565,61 @@ function renderCompanies() {
 
 /* ACTIONS */
 
+function showToast(msg, kind = 'info') {
+  let t = $('uiToast');
+  if (!t) {
+    t = document.createElement('div');
+    t.id = 'uiToast';
+    t.className = 'ui-toast';
+    document.body.appendChild(t);
+  }
+  t.dataset.kind = kind;
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(showToast._h);
+  showToast._h = setTimeout(() => t.classList.remove('show'), 4500);
+}
+
+// Try to find a JD URL for a row from any available source.
+// Priority: report markdown's `**URL:**` line → notes column URLs.
+async function findJdUrl(r) {
+  if (!r) return null;
+  if (r.reportPath) {
+    try {
+      const resp = await fetch(`/api/report?path=${encodeURIComponent(r.reportPath)}`);
+      if (resp.ok) {
+        const md = await resp.text();
+        const m = md.match(/\*\*URL:\*\*\s+(\S+)/);
+        if (m) return m[1];
+      }
+    } catch {}
+  }
+  if (r.urls && r.urls.length) return r.urls[0];
+  return null;
+}
+
 async function openReport(r) {
-  if (!r || !r.reportPath) return;
-  const md = await fetch(`/api/report?path=${encodeURIComponent(r.reportPath)}`).then((x) => x.text());
+  if (!r) return;
+  if (!r.reportPath) {
+    showToast(`No report on file for #${r.num} ${r.company} (report column is "n/a").`, 'warn');
+    return;
+  }
+  let md;
+  try {
+    const resp = await fetch(`/api/report?path=${encodeURIComponent(r.reportPath)}`);
+    if (!resp.ok) {
+      const url = await findJdUrl(r);
+      const hint = url
+        ? `Report file is missing on disk. JD URL is still available — use Open posting.`
+        : `Report file is missing on disk and no JD URL was found in notes either.`;
+      showToast(`Report not found: ${r.reportPath}. ${hint}`, 'error');
+      return;
+    }
+    md = await resp.text();
+  } catch (e) {
+    showToast(`Report fetch failed: ${e.message}`, 'error');
+    return;
+  }
   $('reportTitle').textContent = `${r.company} — ${r.role}`;
   $('reportSub').textContent = `#${r.num} · ${r.date} · score ${r.score.toFixed(2)}/5 · ${r.status}`;
   $('reportBody').textContent = md;
@@ -576,10 +628,15 @@ async function openReport(r) {
 }
 
 async function openJD(r) {
-  if (!r || !r.reportPath) return;
-  const md = await fetch(`/api/report?path=${encodeURIComponent(r.reportPath)}`).then((x) => x.text());
-  const u = (md.match(/\*\*URL:\*\*\s+(\S+)/) || [])[1];
-  if (u) window.open(u, '_blank');
+  if (!r) return;
+  const url = await findJdUrl(r);
+  if (!url) {
+    showToast(`No JD URL found for #${r.num} ${r.company}. Add one to notes (URL: …) or the report header (**URL:**).`, 'warn');
+    return;
+  }
+  // Defensive — open in new tab/window. Some browsers strip target=_blank without noopener.
+  const win = window.open(url, '_blank', 'noopener,noreferrer');
+  if (!win) showToast(`Browser blocked the popup. URL copied — paste it: ${url}`, 'warn');
 }
 
 $('closeReport').addEventListener('click', () => { $('reportModal').hidden = true; });
