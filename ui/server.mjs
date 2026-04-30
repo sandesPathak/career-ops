@@ -16,10 +16,13 @@ const SUPPORT_DIR = process.env.CAREER_OPS_SUPPORT_DIR
 const OVERLAY_DIR = join(SUPPORT_DIR);
 const OVERLAY_FILE = join(OVERLAY_DIR, 'tracker-overlay.json');
 
+// Order matters — first match wins. Rejection-class signals come BEFORE interview/applied-ack
+// because rejection emails sometimes contain "thank you for applying" boilerplate at the top.
+// Keep this list synced with the kind classifier in tools/email-refresh/prompt.md Step 5.
 const INTENT_RULES = [
+  { intent: 'rejection', re: /(unfortunately[, ]+(?:we|after)|we (?:have|'ve) decided (?:not to|to (?:move forward|pursue))|won['’]t be moving forward|not (?:moving|to move) forward|moving forward with other candidates|decided not to (?:move forward|proceed)|chose to move forward with (?:another|other)|not be (?:a fit|moving forward)|no longer being considered|not (?:selected|moving|to move)|wasn['’]t selected|cannot move forward|other candidates|update on your application|regarding your application|thank you for your interest|status of your application)/i },
   { intent: 'offer', re: /(pleased to (?:offer|extend)|offer letter|congratulations[\s\S]{0,40}offer|extending an offer|formal offer|offer of employment)/i },
-  { intent: 'rejection', re: /(unfortunately|won['’]t be moving forward|not (?:moving|to move) forward|other candidates|decided not to|not be a fit|not selected|cannot move forward|chose to move forward with another)/i },
-  { intent: 'interview-request', re: /(schedule (?:a |an )?(?:call|interview|chat)|book a time|calendly|next steps?|interview availability|find a time|set up a (?:call|chat)|let['’]s connect|chat with)/i },
+  { intent: 'interview-request', re: /(schedule (?:a |an )?(?:call|interview|chat)|book a time|calendly|next steps?|interview availability|find a time|set up a (?:call|chat)|let['’]s connect|chat with|invite to (?:interview|chat))/i },
   { intent: 'recruiter-outreach', re: /(came across your profile|reaching out about|exciting opportunity|saw your background|wanted to connect about a role)/i },
   { intent: 'security-code', re: /security code|verification code|2fa|two-factor/i },
   { intent: 'applied-ack', re: /(thank(?:s)? you for (?:applying|your application)|application (?:has been )?received|we received your application|thanks for applying)/i },
@@ -35,8 +38,9 @@ const ACTIONS_BY_INTENT = {
   'other': { label: 'Open in Gmail', target: null, tone: 'soft' },
 };
 
-function classifyIntent(subject, snippet) {
-  const text = `${subject || ''}\n${snippet || ''}`;
+function classifyIntent(subject, snippet, body) {
+  // Search across subject + snippet + body so rejections buried in body language get caught.
+  const text = `${subject || ''}\n${snippet || ''}\n${body || ''}`;
   for (const { intent, re } of INTENT_RULES) if (re.test(text)) return intent;
   return 'other';
 }
@@ -236,7 +240,7 @@ async function handle(req, res) {
     for (const [company, list] of Object.entries(byCompany)) {
       const trackerMatch = findTrackerMatch(rows, company);
       enrichedByCompany[company] = list.map((m) => {
-        const intent = classifyIntent(m.subject, m.snippet);
+        const intent = classifyIntent(m.subject, m.snippet, m.body);
         const action = ACTIONS_BY_INTENT[intent] || ACTIONS_BY_INTENT.other;
         const mismatch = trackerMatch && intent === 'applied-ack'
           && !['Applied', 'Interview', 'Offer', 'Responded', 'Rejected'].includes(trackerMatch.status);

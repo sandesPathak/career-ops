@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.4.0] — 2026-04-30
+
+Don't miss rejections.
+
+- **`tools/email-refresh/prompt.md` — 4 queries instead of 2.** Adds a rejection-subjects query (`"update on your application"`, `"regarding your application"`, `"thank you for your interest"`, `"following up"`, `"status update"`, `"decision regarding"`, `"no longer being considered"`, `"wasn't selected"`) AND a rejection-body query (`"we have/we've decided"`, `"moving forward with other candidates"`, `"won't be moving forward"`, `"unfortunately we"`, etc.). Catches company-domain rejections that don't come through any ATS.
+- **Step 6 NEVER drops threads.** Adds a tracker cross-reference, sender display-name extraction, and sender-domain-stem inference, with a final `Unknown — <domain>` bucket so unmatched threads still surface in the UI instead of vanishing.
+- **`ui/server.mjs` intent classifier** — rejection rule moved to first place (boilerplate "thank you for applying" inside rejection emails was misclassifying), expanded to 18 patterns, now scans subject + snippet + body. 16/16 unit tests pass against real-world rejection-email language.
+- **New `kind` values in cache:** `rejection`, `interview`, `offer` joined the existing `ats-ack` / `company-ack` / `security-code` / `other`.
+
+
 ## [0.3.0] — 2026-04-30
 
 UI Inbox refresh + email setup docs.
