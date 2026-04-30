@@ -25,10 +25,12 @@ const OVERLAY_FILE = join(OVERLAY_DIR, 'tracker-overlay.json');
 // Order: applied-ack BEFORE rejection — receipt language wins over generic subject
 // hints. This was the bug fixed in 0.7.0 (Luxury Presence ack mis-tagged as rejection).
 const INTENT_RULES = [
-  { intent: 'applied-ack', re: /(thank(?:s)? you for (?:applying|your application)|we (?:have )?received your application|application (?:has been )?received|we'?ll be in touch|will be in touch if|team will review your application)/i },
+  { intent: 'applied-ack', re: /(thank(?:s)? (?:you )?for (?:applying|your application)|we (?:have )?received your application|application (?:has been )?received|we'?ll be in touch|will be in touch if|team will review your application|we appreciate your interest in joining|we will review your application)/i },
   { intent: 'rejection', re: /(unfortunately[, ]+(?:we|after)|we (?:have|'ve) decided (?:not to|to (?:move forward|pursue))|won['’]t be moving forward|not (?:moving|to move) forward|moving forward with other candidates|decided not to (?:move forward|proceed)|chose to move forward with (?:another|other)|no longer being considered|wasn['’]t selected|cannot move forward at this time)/i },
   { intent: 'offer', re: /(pleased to (?:offer|extend)|offer letter|congratulations[\s\S]{0,40}offer|extending an offer|formal offer|offer of employment)/i },
-  { intent: 'interview-request', re: /(schedule (?:a |an )?(?:call|interview|chat)|book a time|calendly|next steps?|interview availability|find a time|set up a (?:call|chat)|let['’]s connect|chat with|invite to (?:interview|chat))/i },
+  // NB: dropped "next steps?" — appears in applied-acks ("get back to you if there are next steps").
+  // Now requires explicit scheduling language only.
+  { intent: 'interview-request', re: /(schedule (?:a |an )?(?:call|interview|chat)|book a time|calendly|interview availability|find a time(?: that works| on (?:my|the))|set up a (?:call|chat)|let['’]s connect|chat with (?:me|us|the)|invite (?:you )?to (?:interview|chat)|like to (?:set up|schedule))/i },
   { intent: 'recruiter-outreach', re: /(came across your profile|reaching out about|exciting opportunity|saw your background|wanted to connect about a role)/i },
   { intent: 'security-code', re: /security code|verification code|2fa|two-factor/i },
 ];
@@ -187,7 +189,10 @@ async function serveStatic(req, res) {
 }
 
 function send(res, code, body, type = 'text/plain') {
-  res.writeHead(code, { 'content-type': type });
+  // No-cache on JSON API responses so the browser doesn't mask server-side fixes.
+  const headers = { 'content-type': type };
+  if (type && type.includes('application/json')) headers['cache-control'] = 'no-store, must-revalidate';
+  res.writeHead(code, headers);
   res.end(body);
 }
 

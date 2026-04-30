@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.7.1] — 2026-04-30
+
+Stop-restarting-the-server. Stop-misreading-applied-acks-as-interviews.
+
+- **Server hot-reload:** `npm run ui` now invokes `node --watch ui/server.mjs`, so any edit to the server reloads automatically. No more `pkill -f` + restart cycle.
+- **Browser auto-refresh:** the Dashboard polls `/api/feed` every 30 seconds (paused while the tab is hidden) and immediately reloads on tab-visibility-change. Manual `↻ Refresh` still works.
+- **Cache-bust:** every API fetch appends `?_=<ts>`; server sends `Cache-Control: no-store` on JSON responses. Server-side fixes never get masked by a stale browser cache again.
+- **Regex fix #1 — drop `next steps?` from the interview-request rule.** Applied-ack emails commonly say "we'll get back to you if there are next steps", which was triggering false-positive INTERVIEW chips on Dash0, Eliza, Higharc, Trace, Reka, Pair Team, etc.
+- **Regex fix #2 — broaden applied-ack** to catch "Thanks for applying" (no "you"), "we appreciate your interest in joining", "we will review your application".
+- **Regex fix #3 — tighten interview-request** to require explicit scheduling language only (`schedule a call`, `find a time on Calendly`, `like to set up`, `chat with the team`), not just any verb that *might* imply forward motion.
+
+
 ## [0.7.0] — 2026-04-30
 
 Classification by Claude (not regex) + un-truncate emails on click.

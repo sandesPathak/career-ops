@@ -109,22 +109,37 @@ function statusCounts() {
 }
 
 async function loadAll() {
+  // Cache-bust each fetch so a stale browser doesn't show old chips after a server-side fix.
+  const t = Date.now();
   const [a, p, e, f] = await Promise.all([
-    fetch('/api/applications').then((r) => r.json()),
-    fetch('/api/pipeline').then((r) => r.json()).catch(() => ({ pending: 0 })),
-    fetch('/api/emails').then((r) => r.json()).catch(() => ({ byCompany: {} })),
-    fetch('/api/feed').then((r) => r.json()).catch(() => ({ events: [], fetchedAt: null })),
+    fetch('/api/applications?_=' + t).then((r) => r.json()),
+    fetch('/api/pipeline?_=' + t).then((r) => r.json()).catch(() => ({ pending: 0 })),
+    fetch('/api/emails?_=' + t).then((r) => r.json()).catch(() => ({ byCompany: {} })),
+    fetch('/api/feed?_=' + t).then((r) => r.json()).catch(() => ({ events: [], fetchedAt: null })),
   ]);
   state.rows = a.rows;
   state.pipelinePending = p.pending || 0;
   state.emailsByCompany = e.byCompany || {};
   state.emailsFetchedAt = e.fetchedAt || f.fetchedAt;
   state.feed = f.events || [];
+  state.lastLoadAt = t;
   if (!state.selectedNum && state.rows.length) {
     state.selectedNum = sortedRows(state.rows)[0].num;
   }
   render();
 }
+
+// Auto-refresh: poll every 30s while the tab is visible. Manual ↻ Refresh button still works.
+let _autoRefreshTimer = null;
+function startAutoRefresh() {
+  if (_autoRefreshTimer) return;
+  _autoRefreshTimer = setInterval(() => {
+    if (document.hidden) return;
+    loadAll().catch(() => {});
+  }, 30_000);
+}
+// Reload immediately when the tab becomes visible (e.g., user returns from Gmail)
+document.addEventListener('visibilitychange', () => { if (!document.hidden) loadAll().catch(() => {}); });
 
 async function refreshEmails() {
   const btn = $('refreshEmailsBtn');
@@ -903,4 +918,4 @@ document.addEventListener('keydown', (e) => {
   }
 });
 
-loadAll();
+loadAll().then(startAutoRefresh).catch(() => startAutoRefresh());

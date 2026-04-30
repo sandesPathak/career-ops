@@ -1,6 +1,6 @@
 {
   "name": "career-ops",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "description": "AI-powered job search pipeline built on Claude Code",
   "scripts": {
     "postinstall": "playwright install chromium --with-deps 2>/dev/null || playwright install chromium",
@@ -26,7 +26,7 @@
     "setup:python": "python3 -m venv .venv && .venv/bin/pip install --upgrade pip && .venv/bin/pip install -r requirements.txt",
     "discover": "node scan-discover.mjs",
     "gemini:eval": "node gemini-eval.mjs",
-    "ui": "node ui/server.mjs"
+    "ui": "node --watch ui/server.mjs"
   },
   "keywords": [
     "ai",
