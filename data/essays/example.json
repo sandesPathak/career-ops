@@ -1,0 +1,15 @@
+{
+  "_comment": "One JSON file per company. Filename is the company slug used in apply scripts (e.g., zapier.json, ashbyhq.json). Each KEY is the exact question text from the application form (case + punctuation matter — apply-shared.mjs does fuzzy match but exact wins). Each VALUE is your tailored answer. Apply scripts look these up before opening the form so no required field is left blank.",
+  "_examples_of_question_keys_to_expect": [
+    "Why do you want to work at <Company>?",
+    "Tell us about a project you're proud of",
+    "favorite API you've integrated with and why",
+    "LinkedIn URL",
+    "Website or Portfolio",
+    "What's the most interesting problem you've solved with LLMs?"
+  ],
+  "Why do you want to work at Example Co": "Two-paragraph answer specific to this company. Lead with the customer problem they solve, the technical primitive (forward-deployed AI / agents / data pipelines / etc.) you'd contribute to, and one concrete shipped artifact from your background that maps to it. Keep under 150 words unless the form asks for more.",
+  "favorite API you've integrated with and why": "Pick a real one you've integrated. Open with the API name + use case, follow with one specific reason it stood out (clean failure modes, debuggable webhooks, exposed primitives vs. opinionated SDK), close with the operational outcome (e.g., 'ops self-served debugging without engineer escalation').",
+  "LinkedIn URL": "https://linkedin.com/in/your-handle",
+  "Website or Portfolio": "https://github.com/your-handle"
+}

@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "mcp__chrome-devtools__navigate_page",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/dup-guard-pre-nav.sh",
+            "timeout": 10,
+            "statusMessage": "dup-guard checking URL"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/merge-tracker.sh",
+            "if": "Write(batch/tracker-additions/*)",
+            "timeout": 30,
+            "statusMessage": "merge-tracker"
+          }
+        ]
+      },
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/prettier-mjs.sh",
+            "timeout": 15
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/notify-stop.sh"
+          }
+        ]
+      }
+    ]
+  }
+}

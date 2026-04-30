@@ -1,0 +1,15 @@
+# Personal-data leak patterns for test-all.mjs leak check.
+# Copy to `.leak-patterns.txt` (gitignored) and add your own values, one per line.
+# Each pattern is searched against tracked files via `git grep`.
+# Lines starting with # are comments.
+
+# Examples — replace with your actual values:
+# YourName
+# YourFamilyName
+# yourgithubhandle
+# 555-555-5555
+# +15555555555
+# YourCity, ST 12345
+# Previous Employer 1
+# Previous Employer 2
+# /Users/yourusername/

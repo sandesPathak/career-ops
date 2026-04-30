@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Career Ops</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="apple-touch-icon" href="/favicon.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header class="appbar">
+    <div class="brand">
+      <div class="logo">CO</div>
+      <div class="brand-text">
+        <h1>Career Ops</h1>
+        <span>Pipeline · Inbox · Reports</span>
+      </div>
+    </div>
+
+    <nav class="nav">
+      <button class="nav-item active" data-view="pipeline">Pipeline</button>
+      <button class="nav-item" data-view="inbox">Inbox</button>
+      <button class="nav-item" data-view="companies">Companies</button>
+    </nav>
+
+    <div class="appbar-right">
+      <div class="search">
+        <span class="search-icon">⌕</span>
+        <input id="search" type="search" placeholder="Search company, role, notes…" autocomplete="off">
+        <kbd class="kbd">/</kbd>
+      </div>
+      <button id="refreshBtn" class="icon-btn" title="Refresh">⟳</button>
+    </div>
+  </header>
+
+  <div class="kpis">
+    <div class="kpi"><span class="kpi-num" id="kpi-offers">—</span><span class="kpi-lbl">Offers</span></div>
+    <div class="kpi"><span class="kpi-num" id="kpi-applied">—</span><span class="kpi-lbl">Applied</span></div>
+    <div class="kpi"><span class="kpi-num" id="kpi-evaluated">—</span><span class="kpi-lbl">Evaluated</span></div>
+    <div class="kpi"><span class="kpi-num" id="kpi-top">—</span><span class="kpi-lbl">Top ≥4.0</span></div>
+    <div class="kpi"><span class="kpi-num" id="kpi-emails">—</span><span class="kpi-lbl">Emails</span></div>
+    <div class="kpi"><span class="kpi-num" id="kpi-pipeline">—</span><span class="kpi-lbl">Pipeline</span></div>
+    <div class="kpi"><span class="kpi-num" id="kpi-avg">—</span><span class="kpi-lbl">Avg score</span></div>
+  </div>
+
+  <!-- PIPELINE VIEW: master-detail -->
+  <section id="view-pipeline" class="view active">
+    <div class="three-col">
+      <aside class="filters">
+        <div class="filter-block">
+          <h4>Status</h4>
+          <div id="statusFilters" class="chips"></div>
+        </div>
+        <div class="filter-block">
+          <h4>Score</h4>
+          <div id="scoreFilters" class="chips"></div>
+        </div>
+        <div class="filter-block">
+          <h4>Has email</h4>
+          <div class="chips">
+            <button class="chip" data-emailfilter="any">Any</button>
+            <button class="chip" data-emailfilter="yes">With ✉</button>
+            <button class="chip" data-emailfilter="no">Without</button>
+          </div>
+        </div>
+      </aside>
+
+      <div class="list-pane">
+        <div class="list-head">
+          <span id="listCount">— offers</span>
+          <select id="sortSelect" class="select">
+            <option value="score">Sort · Score</option>
+            <option value="date">Sort · Date</option>
+            <option value="company">Sort · Company</option>
+            <option value="emails">Sort · ✉ count</option>
+          </select>
+        </div>
+        <div id="rowList" class="row-list"></div>
+      </div>
+
+      <div class="detail-pane" id="detail">
+        <div class="empty"><h2>Select an offer</h2><div>Pick a row on the left to see role details, notes, and inbox activity for that company.</div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- INBOX VIEW -->
+  <section id="view-inbox" class="view">
+    <div class="inbox-wrap">
+      <div class="inbox-head">
+        <div>
+          <h3>Inbox triage</h3>
+          <div class="inbox-sub" id="inboxSub">— emails · cache: —</div>
+        </div>
+        <div class="inbox-filters" id="inboxIntentFilters"></div>
+      </div>
+
+      <div class="inbox-mismatch" id="inboxMismatch" hidden></div>
+
+      <div id="inboxGroups" class="inbox-groups"></div>
+    </div>
+  </section>
+
+  <!-- COMPANIES VIEW -->
+  <section id="view-companies" class="view">
+    <div id="companyGrid" class="company-grid"></div>
+  </section>
+
+  <!-- REPORT MODAL -->
+  <div id="reportModal" class="modal" hidden>
+    <div class="modal-card">
+      <div class="modal-head">
+        <div>
+          <div class="modal-title" id="reportTitle">Report</div>
+          <div class="modal-sub" id="reportSub"></div>
+        </div>
+        <button id="closeReport" class="icon-btn">✕</button>
+      </div>
+      <div id="reportBody" class="modal-body"></div>
+    </div>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>

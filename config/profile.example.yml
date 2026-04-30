@@ -1,0 +1,179 @@
+# Career-Ops Profile Configuration
+# Copy this file to config/profile.yml and fill in your details.
+# This is the single source of truth for your personal data across all modes.
+
+candidate:
+  full_name: "Jane Smith"
+  email: "jane@example.com"
+  phone: "+1-555-0123"
+  location: "San Francisco, CA"
+  linkedin: "linkedin.com/in/janesmith"
+  portfolio_url: "https://janesmith.dev"
+  github: "github.com/janesmith"
+  twitter: "https://x.com/janesmith"
+  # (Optional) Canva resume design ID for visual CV generation via /career-ops pdf.
+  # Find it in your Canva design URL: https://www.canva.com/design/DAxxxxxxx/...
+  # The ID starts with "D" and is 11 characters long.
+  # canva_resume_design_id: "DAxxxxxxxxx"
+
+target_roles:
+  # Your North Star roles — what you're optimizing for
+  primary:
+    - "Senior AI Engineer"
+    - "Staff ML Engineer"
+  # Archetypes help the evaluation system score fit
+  archetypes:
+    - name: "AI/ML Engineer"
+      level: "Senior/Staff"
+      fit: "primary"        # primary = dream role, secondary = good fit, adjacent = stretch
+    - name: "AI Product Manager"
+      level: "Senior"
+      fit: "secondary"
+    - name: "Solutions Architect"
+      level: "Mid-Senior"
+      fit: "adjacent"
+
+narrative:
+  # Your professional headline (1 line)
+  headline: "ML Engineer turned AI product builder"
+  # Your exit story — what makes you unique
+  exit_story: "Built and sold my SaaS after 5 years. Now focused on applied AI at scale."
+  # Your top 3-5 superpowers
+  superpowers:
+    - "End-to-end ML pipelines"
+    - "Fast prototyping (idea to prod in 2 weeks)"
+    - "Cross-functional communication"
+  # Proof points — projects, articles, case studies with measurable impact
+  proof_points:
+    - name: "Project Alpha"
+      url: "https://janesmith.dev/project-alpha"
+      hero_metric: "Reduced inference latency 40%"
+    - name: "Open Source Tool"
+      url: "https://github.com/janesmith/tool"
+      hero_metric: "2K+ GitHub stars"
+  # Optional: dashboard/demo URL with credentials
+  # dashboard:
+  #   url: "https://janesmith.dev/demo"
+  #   password: "demo-2026"
+
+compensation:
+  target_range: "$150K-200K"     # Your target total comp
+  currency: "USD"
+  minimum: "$120K"               # Walk-away number
+  location_flexibility: "Remote preferred, 1 week/month on-site possible"
+
+location:
+  country: "United States"
+  city: "San Francisco"
+  timezone: "PST"
+  visa_status: "No sponsorship needed"
+  # For remote roles outside your country:
+  # onsite_availability: "1 week/month in any city"
+
+# ───────────────────────────────────────────────────────────────────────────
+# Hard policies — used by prefilter.mjs, filter-*.mjs, scan-curated.mjs,
+# apply-*.mjs and the .claude/agents/* prompts. Do not delete sections.
+# ───────────────────────────────────────────────────────────────────────────
+
+location_policy:
+  # The candidate's home city + state + ZIP. Used to fill ATS form fields.
+  primary_city: "San Francisco"
+  primary_state: "CA"
+  primary_zip: "94105"
+  # Modes you'll accept. Common values: "Remote-US", "Hybrid", "On-site".
+  acceptable_modes:
+    - "Remote-US"
+  # Cities/regions that count as "local" for filter scripts (lowercase substrings).
+  acceptable_local_substrings:
+    - "san francisco"
+    - "bay area"
+    - "oakland"
+  # Set true if you'll relocate for the right role; affects form gates.
+  willing_to_relocate: false
+
+work_authorization:
+  # One of: "US Citizen", "GC-EAD", "Green Card", "H1B", "F1-OPT", "TN", "L2-EAD", "Canadian Citizen", etc.
+  status: "US Citizen"
+  authorized_us: true
+  requires_sponsorship: false
+  # Active US security clearance. null/empty if none.
+  clearance: null
+  # If true, the system will not auto-discard government/defense customer postings.
+  # Most non-citizens should keep this false.
+  accepts_federal_customer_roles: true
+
+resume_output:
+  # Where tailored resumes are saved per application. Pre-submit reviews open from here.
+  base_dir: "~/Desktop/resume"
+  # Filename inside {base_dir}/{Company}/. Most users want a generic "resume.pdf".
+  filename: "resume.pdf"
+
+# Standard application form answers — auto-filled in every application.
+# All voluntary self-id fields are user-confirmed; legally protected.
+# Read by apply-shared.mjs#loadProfile, then by apply-greenhouse-essays.mjs / apply-ashby-*.mjs / finish-ashby.mjs.
+application_defaults:
+  # Identity
+  first_name: "Jane"
+  last_name: "Smith"
+  preferred_first_name: "Jane"
+  pronouns: "She/Her"
+  gender: "Female"
+  hispanic_or_latino: "No"
+  race_ethnicity: "Asian"
+  veteran_status: "I am not a protected veteran"
+  disability_status: "No, I do not have a disability"
+
+  # Contact
+  email: "jane@example.com"
+  phone_e164: "+15550123456"
+  phone_us_no_country: "5550123456"
+  phone_pretty: "(555) 012-3456"
+  country_phone_label: "United States +1"
+
+  # Location (forms ask for these in many shapes)
+  location_city: "San Francisco"
+  location_state: "CA"
+  location_zip: "94105"
+  location_full: "San Francisco, CA"
+  location_combo_search: "San Francisco"
+  location_combo_pick: "San Francisco, California, United States"
+  country_of_residence: "United States"
+  timezone: "America/Los_Angeles (PT)"
+
+  # Eligibility
+  authorized_to_work_us: "Yes"
+  requires_sponsorship: "No"
+  requires_h1b_sponsorship: "No"
+  passport_country: "United States"
+  visa_status: "US Citizen"
+
+  # Work history flags
+  worked_for_company_before_default: "No"
+  has_non_compete: "No"
+  # Free-text — explain your relocation policy. Used verbatim if a form asks.
+  willing_to_relocate: "No — Remote-US or Bay Area only"
+
+  # Comp / experience anchors
+  base_salary_expectation_min: 150000
+  base_salary_expectation_anchor: 175000
+  base_salary_expectation_max: 215000
+  total_yoe: 6
+  yoe_ceiling: 6
+  has_bachelors_stem: "Yes"
+
+  # Most recent / current company (used when forms ask "current or most recent company")
+  current_company: "Acme Corp"
+  # Notice period to give your current employer (used when forms ask "notice period")
+  notice_period: "2 weeks"
+  # Primary backend language for forms that ask "primary backend language"
+  primary_backend_language: "Python"
+
+  # Links
+  linkedin_url: "https://linkedin.com/in/janesmith"
+  github_url: "https://github.com/janesmith"
+  portfolio_url: ""
+  other_url: ""
+
+  # Boilerplate
+  how_did_you_hear: "Greenhouse / Ashby / Lever job board"
+  why_remote_us_when_form_says_hybrid: "Based remote with no relocation. Applying for the Remote-US option listed in the posting."
