@@ -46,20 +46,40 @@ async function checkPlaywright() {
     const { chromium } = await import('playwright');
     const execPath = chromium.executablePath();
     if (existsSync(execPath)) {
-      return { pass: true, label: 'Playwright chromium installed' };
+      return { pass: true, label: 'Playwright chromium installed (used by generate-pdf.mjs, prefilter.mjs, scrapers)' };
     }
     return {
       pass: false,
       label: 'Playwright chromium not installed',
-      fix: 'Run: npx playwright install chromium',
+      fix: 'Run: npx playwright install chromium  (one-time, ~150MB)',
     };
   } catch {
     return {
       pass: false,
       label: 'Playwright chromium not installed',
-      fix: 'Run: npx playwright install chromium',
+      fix: 'Run: npx playwright install chromium  (one-time, ~150MB)',
     };
   }
+}
+
+async function checkBrowserCDP() {
+  // Check that the user's Brave/Chrome is running with --remote-debugging-port=9222.
+  // Required for chrome-devtools-mcp + apply-*.mjs (these connect to the user's session).
+  try {
+    const r = await fetch('http://localhost:9222/json/version', { signal: AbortSignal.timeout(800) });
+    if (r.ok) {
+      const v = await r.json();
+      return { pass: true, label: `Browser attached on :9222 (${(v.Browser || 'unknown').replace(/\//, ' ')}) — apply flow ready` };
+    }
+  } catch {}
+  return {
+    pass: false,
+    label: 'No browser attached on :9222 (only matters if you want to auto-apply via the apply-runner agent or apply-*.mjs scripts)',
+    fix: [
+      'Run: npm run browser   (auto-launches Brave/Chrome with the debug port)',
+      'Or manually: open -na "Google Chrome" --args --remote-debugging-port=9222   (macOS)',
+    ],
+  };
 }
 
 function checkCv() {
@@ -189,6 +209,7 @@ async function main() {
     checkNodeVersion(),
     checkDependencies(),
     await checkPlaywright(),
+    await checkBrowserCDP(),
     checkCv(),
     checkProfile(),
     checkPortals(),

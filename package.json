@@ -1,9 +1,12 @@
 {
   "name": "career-ops",
-  "version": "1.0.0",
+  "version": "0.2.0",
   "description": "AI-powered job search pipeline built on Claude Code",
   "scripts": {
+    "postinstall": "playwright install chromium --with-deps 2>/dev/null || playwright install chromium",
     "doctor": "node doctor.mjs",
+    "browser": "node tools/start-browser.mjs",
+    "onboard": "node tools/onboarding-server.mjs",
     "test": "node --test tests/*.test.mjs",
     "verify": "node verify-pipeline.mjs",
     "normalize": "node normalize-statuses.mjs",

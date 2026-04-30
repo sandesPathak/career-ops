@@ -178,3 +178,20 @@ export function logStep(stage, msg, extra = {}) {
   const tags = Object.entries(extra).map(([k, v]) => `${k}=${JSON.stringify(v)}`).join(' ');
   process.stderr.write(`[apply ${stage}] ${msg}${tags ? ' ' + tags : ''}\n`);
 }
+
+// Attach to the user's Brave/Chrome via CDP. If port 9222 isn't responding,
+// print a clear actionable error and exit. All apply-*.mjs scripts use this.
+export async function connectToBrave(endpoint = 'http://localhost:9222') {
+  const { chromium } = await import('playwright');
+  try {
+    return await chromium.connectOverCDP(endpoint);
+  } catch (e) {
+    process.stderr.write(`\n❌ Cannot connect to a browser on ${endpoint}.\n\n`);
+    process.stderr.write(`This script needs your Brave/Chrome running with the remote debugging port.\n`);
+    process.stderr.write(`Quick fix:\n    npm run browser\n\n`);
+    process.stderr.write(`That auto-launches Brave/Chrome with the right flag, attached to your normal\n`);
+    process.stderr.write(`profile (cookies + sessions + extensions intact). Once it's open, rerun this command.\n`);
+    process.stderr.write(`\nOriginal error: ${e.message}\n`);
+    process.exit(2);
+  }
+}

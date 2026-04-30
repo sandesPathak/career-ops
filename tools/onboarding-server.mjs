@@ -190,6 +190,60 @@ function copyTemplate(src, dst) {
   return true;
 }
 
+function buildScreeningBank(form) {
+  // Read the example template, fill its {placeholder} honest_answer fields with
+  // concrete answers derived from the form. Falls back to the raw example if the
+  // file is missing or malformed.
+  const examplePath = `${ROOT}/screening-questions.example.json`;
+  if (!existsSync(examplePath)) return null;
+  const bank = JSON.parse(readFileSync(examplePath, 'utf-8'));
+  const wa = workAuthDefaults(form.work_auth);
+  const isCitizen = (form.work_auth || '').toLowerCase() === 'us citizen';
+  const where = `${form.city}, ${form.state}`;
+  const salary = parseInt(form.salary_anchor, 10) || 175000;
+  const fills = {
+    us_citizen_required: {
+      honest_answer: isCitizen ? 'Yes' : `No — work authorization is "${form.work_auth}", not US citizenship.`,
+      action: isCitizen ? 'fill' : 'discard',
+    },
+    active_security_clearance: { honest_answer: 'No clearance.', action: 'discard' },
+    nyc_hybrid_required: {
+      honest_answer: `No — based in ${where} with no relocation. Applying for the Remote-US option listed in the posting.`,
+      action: 'fill_and_flag',
+    },
+    sf_bay_or_nyc_only: {
+      honest_answer: `No — ${where}. Not a fit for SF/NYC-required posting.`,
+      action: 'discard',
+    },
+    us_only_timezone: { honest_answer: `I am in the United States (${where}).`, action: 'discard' },
+    h1b_sponsorship_required: { honest_answer: wa.requires_sponsorship, action: 'fill' },
+    authorized_us: { honest_answer: wa.authorized_to_work_us, action: 'fill' },
+    non_compete: { honest_answer: 'No', action: 'fill' },
+    yoe_floor_exceeded: {
+      honest_answer: 'Compare the JD floor to your total YoE in config/profile.yml § application_defaults.total_yoe; if it exceeds, action=discard.',
+      action: 'discard',
+    },
+    salary_expectation: {
+      honest_answer: `\$${salary.toLocaleString()} base; flexible based on total comp + equity.`,
+      action: 'fill',
+    },
+    fed_govt_customer_acknowledgement: {
+      honest_answer: isCitizen ? 'Yes' : `No — work authorization is "${form.work_auth}", not US citizenship; federal/DoD contract roles typically require citizenship.`,
+      action: isCitizen ? 'fill' : 'discard',
+    },
+    worked_at_company_before: { honest_answer: 'No', action: 'fill' },
+    bachelors_stem: { honest_answer: 'Yes', action: 'fill' },
+  };
+  for (const q of bank.questions || []) {
+    const f = fills[q.id];
+    if (f) {
+      q.honest_answer = f.honest_answer;
+      if (f.action) q.action = f.action;
+    }
+  }
+  return bank;
+}
+
 function writeFiles(form) {
   const created = [];
 
@@ -211,11 +265,19 @@ function writeFiles(form) {
   writeFileSync(`${ROOT}/cv.md`, form.cv);
   created.push('cv.md');
 
-  // 3. Copy templates to their real names (skip if already present)
+  // 3. screening-questions.json — fill placeholders from form data, don't just copy
+  if (!existsSync(`${ROOT}/screening-questions.json`)) {
+    const bank = buildScreeningBank(form);
+    if (bank) {
+      writeFileSync(`${ROOT}/screening-questions.json`, JSON.stringify(bank, null, 2));
+      created.push('screening-questions.json');
+    }
+  }
+
+  // 4. Other templates — straight copy if not present
   const copies = [
     ['modes/_profile.template.md', 'modes/_profile.md'],
     ['templates/portals.example.yml', 'portals.yml'],
-    ['screening-questions.example.json', 'screening-questions.json'],
     ['cv-do-not-claim.example.txt', 'cv-do-not-claim.txt'],
     ['.env.example', '.env'],
   ];

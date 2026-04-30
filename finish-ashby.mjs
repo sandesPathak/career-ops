@@ -19,7 +19,7 @@
 // + application_defaults) so this script works for any contributor without edits.
 
 import { chromium } from 'playwright';
-import { loadFullProfile } from './apply-shared.mjs';
+import { loadFullProfile, connectToBrave } from './apply-shared.mjs';
 
 const PROFILE = loadFullProfile();
 const AD = PROFILE.application_defaults || {};
@@ -114,7 +114,7 @@ async function main() {
   const urlNeedle = (process.argv[2] || '').toLowerCase();
   if (!urlNeedle) { console.error('Usage: node finish-ashby.mjs <url-substring>'); process.exit(2); }
 
-  const browser = await chromium.connectOverCDP('http://localhost:9222');
+  const browser = await connectToBrave('http://localhost:9222');
   const ctx = browser.contexts()[0];
   const pages = ctx.pages();
   const page = pages.find(p => p.url().toLowerCase().includes(urlNeedle)) || pages.at(-1);

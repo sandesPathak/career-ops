@@ -19,7 +19,7 @@ import { resolve, basename } from 'node:path';
 import { existsSync, readFileSync } from 'node:fs';
 import { fillGreenhouseStandardFields } from './apply-greenhouse.mjs';
 import { assertNotAlreadyApplied } from './dup-guard.mjs';
-import { loadFullProfile } from './apply-shared.mjs';
+import { loadFullProfile, connectToBrave } from './apply-shared.mjs';
 
 const PROFILE = loadFullProfile();
 const AD = PROFILE.application_defaults || {};
@@ -249,7 +249,7 @@ async function main() {
     throw e;
   }
 
-  const browser = await chromium.connectOverCDP('http://localhost:9222');
+  const browser = await connectToBrave('http://localhost:9222');
   const ctx = browser.contexts()[0];
 
   // Close stale tabs
