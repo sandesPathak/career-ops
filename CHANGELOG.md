@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.6.0] — 2026-04-30
+
+UI redesign: sidebar navigation + Dashboard with 4 KPI cards + unified time-sorted activity feed. Answers "what was my last rejection / last application / last interview invite / last offer" in one screen.
+
+- **New sidebar** (left rail, 240px): Dashboard · Messages · Active jobs · Pipeline · Companies · Closed. Live counts as badges per section. Cache-age + ↻ Refresh in the footer.
+- **Dashboard (default landing):** 4 color-coded KPI cards (last applied/rejected/interview/offer) — each shows company · role and time-ago. Below: filter chips (All / Applied / Rejected / Interview / Offer / Ack) + a feed grouped by Today / Yesterday / This week / This month / Earlier.
+- **Active jobs** view: only Applied/Interview/Responded rows, sorted by date. Click a card to drill into Pipeline detail.
+- **Closed** view: Rejected/Discarded archive.
+- **Messages** view: existing Inbox (renamed), now in the sidebar instead of a top tab.
+- **New `/api/feed` endpoint** in `ui/server.mjs` — merges tracker rows + email threads into a unified `events` stream, sorted newest first.
+- **Per-event chips:** `APPLIED` (green), `REJECTED` (red), `INTERVIEW` (cyan), `OFFER` (yellow), `ACK` (muted), `EVALUATED` (purple). Inline action buttons per row: Open posting · Report · Details.
+
+
 ## [0.5.0] — 2026-04-30
 
 UI: "Open posting" + "Open report" actually work now.

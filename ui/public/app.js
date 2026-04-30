@@ -17,19 +17,44 @@ const SCORE_BUCKETS = [
   { key: 'low', label: '<3', match: (r) => r.score < 3 },
 ];
 
+const VIEW_TITLES = {
+  dashboard: 'Dashboard',
+  messages: 'Messages',
+  active: 'Active jobs',
+  pipeline: 'Pipeline',
+  companies: 'Companies',
+  closed: 'Closed',
+};
+
+// Event-type → display chip + tone
+const EVENT_META = {
+  rejection: { lbl: 'REJECTED', tone: 'rejection' },
+  offer:     { lbl: 'OFFER',    tone: 'offer' },
+  interview: { lbl: 'INTERVIEW', tone: 'interview' },
+  applied:   { lbl: 'APPLIED',  tone: 'applied' },
+  ack:       { lbl: 'ACK',      tone: 'ack' },
+  email:     { lbl: 'EMAIL',    tone: 'email' },
+  evaluated: { lbl: 'EVALUATED', tone: 'evaluated' },
+  closed:    { lbl: 'CLOSED',   tone: 'closed' },
+};
+
 const state = {
   rows: [],
   emailsByCompany: {},
   emailsFetchedAt: null,
   pipelinePending: 0,
+  feed: [],
   search: '',
   statusFilter: 'all',
   scoreFilter: 'all',
   emailFilter: 'any',
   inboxIntentFilter: 'all',
+  dashFilter: 'all',
+  msgFilter: 'all',
+  activeFilter: 'all',
   expandedThread: null,
   sort: 'score',
-  view: 'pipeline',
+  view: 'dashboard',
   selectedNum: null,
 };
 
@@ -83,15 +108,17 @@ function statusCounts() {
 }
 
 async function loadAll() {
-  const [a, p, e] = await Promise.all([
+  const [a, p, e, f] = await Promise.all([
     fetch('/api/applications').then((r) => r.json()),
     fetch('/api/pipeline').then((r) => r.json()).catch(() => ({ pending: 0 })),
     fetch('/api/emails').then((r) => r.json()).catch(() => ({ byCompany: {} })),
+    fetch('/api/feed').then((r) => r.json()).catch(() => ({ events: [], fetchedAt: null })),
   ]);
   state.rows = a.rows;
   state.pipelinePending = p.pending || 0;
   state.emailsByCompany = e.byCompany || {};
-  state.emailsFetchedAt = e.fetchedAt;
+  state.emailsFetchedAt = e.fetchedAt || f.fetchedAt;
+  state.feed = f.events || [];
   if (!state.selectedNum && state.rows.length) {
     state.selectedNum = sortedRows(state.rows)[0].num;
   }
@@ -193,35 +220,212 @@ function visibleEmails() {
 /* RENDER */
 
 function render() {
-  renderKpis();
   renderNav();
-  if (state.view === 'pipeline') {
+  renderBadges();
+  if (state.view === 'dashboard') renderDashboard();
+  else if (state.view === 'messages') renderInbox();
+  else if (state.view === 'active') renderActive();
+  else if (state.view === 'pipeline') {
     renderFilters();
     renderRowList();
     renderDetail();
-  } else if (state.view === 'inbox') {
-    renderInbox();
   } else if (state.view === 'companies') {
     renderCompanies();
+  } else if (state.view === 'closed') {
+    renderClosed();
   }
 }
 
-function renderKpis() {
-  const counts = statusCounts();
-  const top = state.rows.filter((r) => r.score >= 4).length;
-  const avg = state.rows.length ? (state.rows.reduce((s, r) => s + r.score, 0) / state.rows.length).toFixed(2) : '—';
-  $('kpi-offers').textContent = state.rows.length;
-  $('kpi-applied').textContent = counts.Applied || 0;
-  $('kpi-evaluated').textContent = counts.Evaluated || 0;
-  $('kpi-top').textContent = top;
-  $('kpi-emails').textContent = totalEmails();
-  $('kpi-pipeline').textContent = state.pipelinePending;
-  $('kpi-avg').textContent = avg;
+function renderNav() {
+  document.querySelectorAll('.sb-item').forEach((b) => b.classList.toggle('active', b.dataset.view === state.view));
+  document.querySelectorAll('.view').forEach((v) => v.classList.toggle('active', v.id === `view-${state.view}`));
+  const t = $('viewTitle');
+  if (t) t.textContent = VIEW_TITLES[state.view] || '';
+  const ct = $('sbCacheTime');
+  if (ct) ct.textContent = state.emailsFetchedAt ? timeAgo(state.emailsFetchedAt) : 'never';
 }
 
-function renderNav() {
-  document.querySelectorAll('.nav-item').forEach((b) => b.classList.toggle('active', b.dataset.view === state.view));
-  document.querySelectorAll('.view').forEach((v) => v.classList.toggle('active', v.id === `view-${state.view}`));
+function renderBadges() {
+  const inFlight = state.rows.filter((r) => /^(Applied|Interview|Responded)/i.test(r.status)).length;
+  setBadge('badge-active', inFlight);
+  setBadge('badge-pipeline', state.pipelinePending);
+  const closedCount = state.rows.filter((r) => /^(Rejected|Discarded)/i.test(r.status)).length;
+  setBadge('badge-closed', closedCount);
+  const unread = state.feed.filter((e) => e.source === 'email' && (e.type === 'rejection' || e.type === 'offer' || e.type === 'interview')).length;
+  setBadge('badge-messages', unread);
+}
+function setBadge(id, n) {
+  const el = $(id); if (!el) return;
+  if (n > 0) { el.textContent = n > 99 ? '99+' : String(n); el.hidden = false; }
+  else el.hidden = true;
+}
+
+/* DASHBOARD */
+
+function relTime(iso) {
+  if (!iso) return null;
+  const diff = Date.now() - new Date(iso).getTime();
+  if (diff < 60_000) return 'just now';
+  if (diff < 3600_000) return `${Math.round(diff/60_000)}m ago`;
+  if (diff < 86400_000) return `${Math.round(diff/3600_000)}h ago`;
+  if (diff < 7*86400_000) return `${Math.round(diff/86400_000)}d ago`;
+  return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
+
+function eventGroup(iso) {
+  if (!iso) return 'Earlier';
+  const d = new Date(iso);
+  const now = new Date();
+  const diffDays = Math.floor((now - d) / 86400_000);
+  // Same calendar day in user's tz
+  if (d.toDateString() === now.toDateString()) return 'Today';
+  const yesterday = new Date(now.getTime() - 86400_000);
+  if (d.toDateString() === yesterday.toDateString()) return 'Yesterday';
+  if (diffDays < 7) return 'This week';
+  if (diffDays < 30) return 'This month';
+  return 'Earlier';
+}
+
+function lastEventOfType(type) {
+  return state.feed.find((e) => e.type === type) || null;
+}
+
+function renderDashboard() {
+  // KPI cards
+  const lastApplied = state.feed.find((e) => e.type === 'applied');
+  const lastReject  = state.feed.find((e) => e.type === 'rejection');
+  const lastInter   = state.feed.find((e) => e.type === 'interview');
+  const lastOffer   = state.feed.find((e) => e.type === 'offer');
+  setKpi('kpi-last-applied',    lastApplied, 'no applications yet');
+  setKpi('kpi-last-rejection',  lastReject,  'no rejections yet');
+  setKpi('kpi-last-interview',  lastInter,   'no interview invites yet');
+  setKpi('kpi-last-offer',      lastOffer,   'no offers yet');
+
+  // Filters
+  const types = ['all', 'applied', 'rejection', 'interview', 'offer', 'ack'];
+  $('dashFilters').innerHTML = types.map((t) => `<button class="chip ${state.dashFilter === t ? 'active' : ''}" data-dash-filter="${t}">${t === 'all' ? 'All' : (EVENT_META[t]?.lbl || t)}</button>`).join('');
+  $('dashFilters').querySelectorAll('button').forEach((b) => b.onclick = () => { state.dashFilter = b.dataset.dashFilter; renderDashboard(); });
+
+  // Filter feed
+  let evs = state.feed;
+  if (state.dashFilter !== 'all') evs = evs.filter((e) => e.type === state.dashFilter);
+  const q = state.search.toLowerCase();
+  if (q) evs = evs.filter((e) => `${e.company} ${e.role || ''} ${e.subject || ''} ${e.summary || ''}`.toLowerCase().includes(q));
+
+  $('dashStats').textContent = `${evs.length} event${evs.length === 1 ? '' : 's'}`;
+
+  // Group + render
+  const groups = {};
+  for (const e of evs) {
+    const g = eventGroup(e.ts);
+    (groups[g] = groups[g] || []).push(e);
+  }
+  const order = ['Today', 'Yesterday', 'This week', 'This month', 'Earlier'];
+  const html = order.filter((g) => groups[g]).map((g) => `
+    <div class="feed-group">
+      <div class="feed-group-h">${g} <span class="feed-group-n">${groups[g].length}</span></div>
+      ${groups[g].map(renderFeedRow).join('')}
+    </div>
+  `).join('') || `<div class="empty"><h2>Nothing yet</h2><div>Apply to a few jobs and they'll appear here. Run <code>↻ Refresh</code> to pull email events.</div></div>`;
+  $('feed').innerHTML = html;
+  $('feed').querySelectorAll('button[data-act]').forEach((b) => b.onclick = (ev) => onFeedAction(ev, b));
+}
+
+function setKpi(id, ev, fallback) {
+  const valEl = $(id);
+  const subEl = $(id + '-sub');
+  if (!valEl || !subEl) return;
+  if (!ev) { valEl.textContent = '—'; subEl.textContent = fallback; return; }
+  valEl.textContent = ev.company + (ev.role ? ` · ${ev.role}` : '');
+  subEl.textContent = relTime(ev.ts) + (ev.subject ? ` — ${ev.subject}` : '');
+}
+
+function renderFeedRow(e) {
+  const meta = EVENT_META[e.type] || EVENT_META.email;
+  const time = e.ts ? new Date(e.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+  const score = (e.score != null && !Number.isNaN(e.score)) ? `<span class="feed-score">${e.score.toFixed(1)}</span>` : '';
+  const summary = e.summary ? `<div class="feed-summary">${escape(e.summary)}</div>` : '';
+  const subj = e.subject && e.source === 'email' ? `<div class="feed-summary feed-subj">${escape(e.subject)}</div>` : '';
+  const actBtns = [];
+  if (e.urls && e.urls.length) actBtns.push(`<button class="btn-mini" data-act="jd" data-id="${escape(e.id)}">Open posting</button>`);
+  if (e.reportPath) actBtns.push(`<button class="btn-mini" data-act="report" data-id="${escape(e.id)}">Report</button>`);
+  if (e.num) actBtns.push(`<button class="btn-mini" data-act="open-row" data-num="${e.num}">Details</button>`);
+  return `
+    <div class="feed-row" data-tone="${meta.tone}">
+      <div class="feed-time">${time}</div>
+      <div class="feed-chip ${meta.tone}">${meta.lbl}</div>
+      <div class="feed-body">
+        <div class="feed-title">${escape(e.company)}${e.role ? ` <span class="feed-role">· ${escape(e.role)}</span>` : ''} ${score}</div>
+        ${subj}
+        ${summary}
+      </div>
+      <div class="feed-actions">${actBtns.join('')}</div>
+    </div>
+  `;
+}
+
+function onFeedAction(ev, btn) {
+  ev.stopPropagation();
+  const id = btn.dataset.id;
+  const num = btn.dataset.num ? Number(btn.dataset.num) : null;
+  const e = state.feed.find((x) => x.id === id);
+  const r = num ? state.rows.find((x) => x.num === num) : (e ? state.rows.find((x) => x.num === e.num) : null);
+  if (btn.dataset.act === 'jd') {
+    const url = (e && e.urls && e.urls[0]) || (r && r.urls && r.urls[0]);
+    if (url) window.open(url, '_blank', 'noopener,noreferrer');
+    else showToast('No JD URL on this event.', 'warn');
+  } else if (btn.dataset.act === 'report') {
+    if (r) openReport(r);
+    else if (e) openReport({ num: e.num, company: e.company, role: e.role, score: e.score, status: '', reportPath: e.reportPath, date: e.ts });
+  } else if (btn.dataset.act === 'open-row') {
+    if (r) { state.view = 'pipeline'; state.selectedNum = r.num; render(); }
+  }
+}
+
+/* ACTIVE JOBS */
+
+function renderActive() {
+  const filters = ['all', 'Applied', 'Interview', 'Responded'];
+  $('activeFilters').innerHTML = filters.map((s) => `<button class="chip ${state.activeFilter === s ? 'active' : ''}" data-active-filter="${escape(s)}">${s === 'all' ? 'All in flight' : s}</button>`).join('');
+  $('activeFilters').querySelectorAll('button').forEach((b) => b.onclick = () => { state.activeFilter = b.dataset.activeFilter; renderActive(); });
+
+  let rows = state.rows.filter((r) => /^(Applied|Interview|Responded)/i.test(r.status));
+  if (state.activeFilter !== 'all') rows = rows.filter((r) => r.status === state.activeFilter);
+  const q = state.search.toLowerCase();
+  if (q) rows = rows.filter((r) => `${r.company} ${r.role} ${r.notes}`.toLowerCase().includes(q));
+  rows.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+
+  $('activeStats').textContent = `${rows.length} job${rows.length === 1 ? '' : 's'} in flight`;
+  $('activeList').innerHTML = rows.map(renderRowCard).join('') || `<div class="empty"><h2>Nothing in flight</h2><div>Applications you've submitted will appear here until you hear back.</div></div>`;
+  $('activeList').querySelectorAll('[data-row-num]').forEach((el) => el.onclick = () => { state.view = 'pipeline'; state.selectedNum = Number(el.dataset.rowNum); render(); });
+}
+
+function renderRowCard(r) {
+  const ts = r.date || '';
+  return `
+    <div class="row-card" data-row-num="${r.num}">
+      <div class="row-card-l">
+        <div class="row-card-co">${escape(r.company)} <span class="row-card-status status-${escape(r.status.toLowerCase())}">${escape(r.status)}</span></div>
+        <div class="row-card-role">${escape(r.role)}</div>
+      </div>
+      <div class="row-card-r">
+        <div class="row-card-score ${scoreClass(r.score)}">${r.score.toFixed(1)}</div>
+        <div class="row-card-date">${ts}</div>
+      </div>
+    </div>
+  `;
+}
+
+/* CLOSED */
+
+function renderClosed() {
+  let rows = state.rows.filter((r) => /^(Rejected|Discarded)/i.test(r.status));
+  const q = state.search.toLowerCase();
+  if (q) rows = rows.filter((r) => `${r.company} ${r.role} ${r.notes}`.toLowerCase().includes(q));
+  rows.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+  $('closedStats').textContent = `${rows.length} closed`;
+  $('closedList').innerHTML = rows.map(renderRowCard).join('') || `<div class="empty"><h2>Nothing closed</h2><div>Rejected and discarded applications appear here.</div></div>`;
+  $('closedList').querySelectorAll('[data-row-num]').forEach((el) => el.onclick = () => { state.view = 'pipeline'; state.selectedNum = Number(el.dataset.rowNum); render(); });
 }
 
 function renderFilters() {
@@ -381,7 +585,8 @@ function renderInbox() {
   }));
 
   const data = visibleEmails();
-  $('inboxSub').textContent = `${data.length} emails · cache: ${state.emailsFetchedAt ? timeAgo(state.emailsFetchedAt) : '—'}`;
+  const subEl = $('msgSub') || $('inboxSub');
+  if (subEl) subEl.textContent = `${data.length} emails · cache: ${state.emailsFetchedAt ? timeAgo(state.emailsFetchedAt) : '—'}`;
 
   const mismatchEl = $('inboxMismatch');
   const mismatches = all.filter((m) => m.trackerMismatch);
@@ -644,14 +849,18 @@ $('refreshBtn').addEventListener('click', () => loadAll());
 $('search').addEventListener('input', (e) => {
   state.search = e.target.value.trim();
   if (state.view === 'pipeline') { renderRowList(); renderDetail(); }
-  else if (state.view === 'inbox') renderInbox();
+  else if (state.view === 'messages') renderInbox();
+  else if (state.view === 'dashboard') renderDashboard();
+  else if (state.view === 'active') renderActive();
+  else if (state.view === 'closed') renderClosed();
 });
 $('sortSelect').addEventListener('change', (e) => {
   state.sort = e.target.value;
   renderRowList();
 });
-document.querySelectorAll('.nav-item').forEach((b) => b.addEventListener('click', () => {
+document.querySelectorAll('.sb-item').forEach((b) => b.addEventListener('click', () => {
   state.view = b.dataset.view;
+  // Reset search when switching views — different views search different things
   render();
 }));
 document.addEventListener('keydown', (e) => {

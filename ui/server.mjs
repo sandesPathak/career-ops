@@ -128,6 +128,23 @@ function parseApplications(md) {
   return rows;
 }
 
+function isoForDate(s) {
+  // Tracker dates are YYYY-MM-DD. Pad to ISO so localeCompare sorts cleanly.
+  if (!s) return null;
+  const m = String(s).match(/^(\d{4}-\d{2}-\d{2})/);
+  return m ? `${m[1]}T12:00:00Z` : null;
+}
+
+function trackerEventType(status) {
+  const s = String(status || '').toLowerCase();
+  if (/offer/.test(s)) return 'offer';
+  if (/interview|responded/.test(s)) return 'interview';
+  if (/^applied/.test(s)) return 'applied';
+  if (/rejected/.test(s)) return 'rejection';
+  if (/discarded|skip/.test(s)) return 'closed';
+  return 'evaluated';
+}
+
 function extractUrls(text) {
   if (!text) return [];
   const urls = [];
@@ -274,6 +291,88 @@ async function handle(req, res) {
     parsed.byCompany = enrichedByCompany;
     parsed._source = source;
     send(res, 200, JSON.stringify(parsed), 'application/json; charset=utf-8');
+    return;
+  }
+
+  if (url.pathname === '/api/feed') {
+    // Unified time-sorted activity feed: tracker rows + email threads.
+    // Each event has shape { id, ts, type, company, role, num, summary, urls, intent, status, score, sender, threadId }
+    const md = await readFile(join(ROOT, 'data', 'applications.md'), 'utf8').catch(() => '');
+    const overlay = await loadOverlay();
+    const rows = applyOverlay(parseApplications(md), overlay);
+
+    // Email cache
+    let emails = { byCompany: {}, fetchedAt: null };
+    try {
+      const candidates = [join(SUPPORT_DIR, 'emails-cache.json'), join(ROOT, 'data', 'emails-cache.json')];
+      for (const p of candidates) {
+        try { emails = JSON.parse(await readFile(p, 'utf8')); break; } catch {}
+      }
+    } catch {}
+
+    const events = [];
+
+    // Tracker events — one per row, dated by the row's date column. Type derived from current status.
+    for (const r of rows) {
+      const ts = isoForDate(r.date);
+      events.push({
+        id: `t:${r.num}`,
+        ts,
+        source: 'tracker',
+        type: trackerEventType(r.status),
+        status: r.status,
+        company: r.company,
+        role: r.role,
+        num: r.num,
+        score: r.score,
+        scoreText: r.scoreText,
+        urls: r.urls || [],
+        reportPath: r.reportPath,
+        summary: (r.notes || '').slice(0, 200),
+      });
+    }
+
+    // Email events — one per thread.
+    for (const [company, threads] of Object.entries(emails.byCompany || {})) {
+      const trackerMatch = findTrackerMatch(rows, company);
+      for (const m of threads || []) {
+        const intent = classifyIntent(m.subject, m.snippet, m.body);
+        const ts = m.date || null;
+        events.push({
+          id: `e:${m.threadId}`,
+          ts,
+          source: 'email',
+          type: intent === 'rejection' ? 'rejection'
+              : intent === 'offer' ? 'offer'
+              : intent === 'interview-request' ? 'interview'
+              : intent === 'applied-ack' ? 'ack'
+              : 'email',
+          intent,
+          company,
+          role: trackerMatch?.role || null,
+          num: trackerMatch?.num || null,
+          score: trackerMatch?.score || null,
+          subject: m.subject,
+          sender: m.sender,
+          threadId: m.threadId,
+          summary: (m.snippet || '').slice(0, 200),
+          urls: trackerMatch?.urls || [],
+        });
+      }
+    }
+
+    // Sort newest first; events without ts go to the bottom
+    events.sort((a, b) => {
+      if (!a.ts && !b.ts) return 0;
+      if (!a.ts) return 1;
+      if (!b.ts) return -1;
+      return b.ts.localeCompare(a.ts);
+    });
+
+    send(res, 200, JSON.stringify({
+      events,
+      fetchedAt: emails.fetchedAt || null,
+    }), 'application/json; charset=utf-8');
     return;
   }
 
