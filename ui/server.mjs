@@ -16,16 +16,21 @@ const SUPPORT_DIR = process.env.CAREER_OPS_SUPPORT_DIR
 const OVERLAY_DIR = join(SUPPORT_DIR);
 const OVERLAY_FILE = join(OVERLAY_DIR, 'tracker-overlay.json');
 
-// Order matters — first match wins. Rejection-class signals come BEFORE interview/applied-ack
-// because rejection emails sometimes contain "thank you for applying" boilerplate at the top.
-// Keep this list synced with the kind classifier in tools/email-refresh/prompt.md Step 5.
+// LEGACY regex fallback — only used for cache entries written before 0.7.0 that have
+// no `intent` field. New refreshes (post-0.7.0) classify at refresh time using Claude's
+// natural-language understanding, which catches edge cases like "thank you for your
+// interest" appearing in BOTH rejections and applied-acks. See
+// tools/email-refresh/prompt.md Step 5 for the canonical classifier.
+//
+// Order: applied-ack BEFORE rejection — receipt language wins over generic subject
+// hints. This was the bug fixed in 0.7.0 (Luxury Presence ack mis-tagged as rejection).
 const INTENT_RULES = [
-  { intent: 'rejection', re: /(unfortunately[, ]+(?:we|after)|we (?:have|'ve) decided (?:not to|to (?:move forward|pursue))|won['’]t be moving forward|not (?:moving|to move) forward|moving forward with other candidates|decided not to (?:move forward|proceed)|chose to move forward with (?:another|other)|not be (?:a fit|moving forward)|no longer being considered|not (?:selected|moving|to move)|wasn['’]t selected|cannot move forward|other candidates|update on your application|regarding your application|thank you for your interest|status of your application)/i },
+  { intent: 'applied-ack', re: /(thank(?:s)? you for (?:applying|your application)|we (?:have )?received your application|application (?:has been )?received|we'?ll be in touch|will be in touch if|team will review your application)/i },
+  { intent: 'rejection', re: /(unfortunately[, ]+(?:we|after)|we (?:have|'ve) decided (?:not to|to (?:move forward|pursue))|won['’]t be moving forward|not (?:moving|to move) forward|moving forward with other candidates|decided not to (?:move forward|proceed)|chose to move forward with (?:another|other)|no longer being considered|wasn['’]t selected|cannot move forward at this time)/i },
   { intent: 'offer', re: /(pleased to (?:offer|extend)|offer letter|congratulations[\s\S]{0,40}offer|extending an offer|formal offer|offer of employment)/i },
   { intent: 'interview-request', re: /(schedule (?:a |an )?(?:call|interview|chat)|book a time|calendly|next steps?|interview availability|find a time|set up a (?:call|chat)|let['’]s connect|chat with|invite to (?:interview|chat))/i },
   { intent: 'recruiter-outreach', re: /(came across your profile|reaching out about|exciting opportunity|saw your background|wanted to connect about a role)/i },
   { intent: 'security-code', re: /security code|verification code|2fa|two-factor/i },
-  { intent: 'applied-ack', re: /(thank(?:s)? you for (?:applying|your application)|application (?:has been )?received|we received your application|thanks for applying)/i },
 ];
 
 const ACTIONS_BY_INTENT = {
@@ -38,8 +43,11 @@ const ACTIONS_BY_INTENT = {
   'other': { label: 'Open in Gmail', target: null, tone: 'soft' },
 };
 
-function classifyIntent(subject, snippet, body) {
-  // Search across subject + snippet + body so rejections buried in body language get caught.
+// Classification source of truth: the cached `intent` field, written at refresh time
+// by Claude reading the full body. Falls through to legacy regex only when the cache
+// entry has no intent (pre-0.7.0 caches).
+function classifyIntent(subject, snippet, body, cachedIntent) {
+  if (cachedIntent && typeof cachedIntent === 'string') return cachedIntent;
   const text = `${subject || ''}\n${snippet || ''}\n${body || ''}`;
   for (const { intent, re } of INTENT_RULES) if (re.test(text)) return intent;
   return 'other';
@@ -275,7 +283,7 @@ async function handle(req, res) {
     for (const [company, list] of Object.entries(byCompany)) {
       const trackerMatch = findTrackerMatch(rows, company);
       enrichedByCompany[company] = list.map((m) => {
-        const intent = classifyIntent(m.subject, m.snippet, m.body);
+        const intent = classifyIntent(m.subject, m.snippet, m.body, m.intent);
         const action = ACTIONS_BY_INTENT[intent] || ACTIONS_BY_INTENT.other;
         const mismatch = trackerMatch && intent === 'applied-ack'
           && !['Applied', 'Interview', 'Offer', 'Responded', 'Rejected'].includes(trackerMatch.status);
@@ -336,7 +344,7 @@ async function handle(req, res) {
     for (const [company, threads] of Object.entries(emails.byCompany || {})) {
       const trackerMatch = findTrackerMatch(rows, company);
       for (const m of threads || []) {
-        const intent = classifyIntent(m.subject, m.snippet, m.body);
+        const intent = classifyIntent(m.subject, m.snippet, m.body, m.intent);
         const ts = m.date || null;
         events.push({
           id: `e:${m.threadId}`,
@@ -344,10 +352,17 @@ async function handle(req, res) {
           source: 'email',
           type: intent === 'rejection' ? 'rejection'
               : intent === 'offer' ? 'offer'
-              : intent === 'interview-request' ? 'interview'
+              : (intent === 'interview-request' || intent === 'interview-scheduling' || intent === 'interview-followup') ? 'interview'
               : intent === 'applied-ack' ? 'ack'
               : 'email',
           intent,
+          // Surface Claude's confidence + reason from the cache so the UI can flag
+          // low-confidence calls and let the user see WHY a thread was classified.
+          confidence: m.confidence || null,
+          reason: m.reason || null,
+          // Was this regex-classified at read-time (legacy) or Claude-classified at
+          // refresh-time (new)? Helps the UI show a "regex fallback" warning.
+          classifiedBy: m.intent ? 'claude' : 'regex',
           company,
           role: trackerMatch?.role || null,
           num: trackerMatch?.num || null,
@@ -355,7 +370,9 @@ async function handle(req, res) {
           subject: m.subject,
           sender: m.sender,
           threadId: m.threadId,
-          summary: (m.snippet || '').slice(0, 200),
+          // Show snippet by default (compact), make full body available on expand.
+          summary: (m.snippet || '').slice(0, 280),
+          body: m.body || null,
           urls: trackerMatch?.urls || [],
         });
       }

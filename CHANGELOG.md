@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.7.0] — 2026-04-30
+
+Classification by Claude (not regex) + un-truncate emails on click.
+
+- **Email intent is now decided by Claude at refresh time**, not by regex at every UI render. `tools/email-refresh/prompt.md` Step 5 has Claude read the full body and assign one of: `applied-ack`, `rejection`, `interview-request`, `interview-scheduling`, `interview-followup`, `offer`, `recruiter-outreach`, `security-code`, `other`. Each entry also gets `confidence` (high/medium/low) and `reason` (one short sentence) so mis-classifications are debuggable. Pull-broad, classify-strict.
+- **`ui/server.mjs#classifyIntent` now trusts the cached `intent` field**, falling back to a tightened regex only for legacy caches written before 0.7.0. Applied-ack rule moved BEFORE rejection rule, and the rejection regex no longer matches generic subjects ("thank you for your interest", "regarding your application", "update on your application") that appear in BOTH acks and rejections — fixes the Luxury Presence applied-ack mis-tagged as rejection.
+- **Confidence indicator** in the feed: low-confidence calls + regex-fallbacks get a `?` mark next to the chip, hover shows Claude's `reason`.
+- **Expandable email bodies** in the Dashboard feed — `▾ show full` toggles between 3-line clamp and the entire body (rendered in monospace, preserving newlines).
+- **Inbox cards now expand on click** with a clear hover state, replacing the silently-clipped 4-line snippet.
+- **`/api/feed` includes the full `body` and the cached `confidence` / `reason` / `classifiedBy`** so the UI can show Claude's reasoning.
+
+
 ## [0.6.0] — 2026-04-30
 
 UI redesign: sidebar navigation + Dashboard with 4 KPI cards + unified time-sorted activity feed. Answers "what was my last rejection / last application / last interview invite / last offer" in one screen.

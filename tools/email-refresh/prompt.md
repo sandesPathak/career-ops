@@ -15,7 +15,7 @@ Capture-everything is the goal. Run **all four** searches below with `pageSize: 
 3. **Rejection-language subjects** — `subject:("update on your application" OR "regarding your application" OR "thank you for your interest" OR "following up" OR "status update" OR "an update" OR "decision regarding" OR "no longer being considered" OR "wasn't selected") newer_than:180d`
 4. **Rejection-language bodies** — `("we have decided" OR "we've decided" OR "moving forward with other candidates" OR "won't be moving forward" OR "decided not to move forward" OR "decided to pursue other candidates" OR "no longer being considered" OR "unfortunately we") newer_than:180d`
 
-If any single query returns 0 threads, that's fine — keep going. If a query returns an MCP error, log it to stderr but do not abort; complete the rest.
+Pull-broad, classify-strict. Subject-only signals like "thank you for your interest" are NOT enough to call something a rejection — Step 5 reads the full body to decide.
 
 ## Step 3 — Fetch full body for each thread
 
@@ -32,9 +32,21 @@ Trim the resulting body to 4000 characters max. Append `… [truncated]` if you 
 
 Read `data/applications.md` if it exists. Extract the **Company** column from every table row (any status). Build a list of known company names — these are the canonical labels you should prefer when matching, since they're what the UI displays. If the file is missing or empty, this list is empty; that's fine.
 
-## Step 5 — Classify each thread
+## Step 5 — Classify each thread (you, Claude, decide — do not regex)
 
-For each thread (using its first message), produce an entry:
+For each thread, read the full body + subject + sender and decide which intent best describes it. Use natural-language reasoning, not keyword matching. Output one of these values:
+
+- **`applied-ack`** — company confirmed receipt of an application. Almost always positive/neutral tone. Examples: "Thank you for applying to <Co>", "We received your application", "Our team will review your application and will be in touch", "Application received", "Thank you for your interest in <Co>! We received your application…". Even if the email also says "thank you for your interest", as long as the body confirms the application was received and review is pending, it is **applied-ack** — NOT rejection.
+- **`rejection`** — company explicitly declined the candidate. Body contains an unambiguous "no" or "we won't proceed" message. Examples: "Unfortunately we won't be moving forward", "We've decided to move forward with other candidates", "We are not able to offer you this role at this time", "No longer being considered", "Wasn't selected". A subject like "Update on your application" alone is NOT enough — the body must say no.
+- **`interview-request`** — explicit invitation to schedule a call/interview. Examples: "Would you like to schedule a chat?", "Please book a time on my calendar", "Find a time on Calendly". Includes recruiter screens, technical interviews, hiring-manager calls.
+- **`interview-scheduling`** — confirmation that an interview is on the calendar. Examples: "Your interview with <interviewer> is confirmed", calendar invite text, "Looking forward to our chat tomorrow".
+- **`interview-followup`** — post-interview communication. Examples: "Thanks for taking the time to meet", "We enjoyed speaking with you", "Next round details".
+- **`offer`** — formal offer extended. Examples: "We're pleased to extend an offer", "Offer letter attached", "Formal offer of employment", "Congratulations — we'd love to have you join".
+- **`recruiter-outreach`** — cold sourcing email, NOT in response to an application. Examples: "Came across your profile", "Saw your background and wanted to connect about a role at <Co>".
+- **`security-code`** — 2FA / verification code email.
+- **`other`** — doesn't fit any of the above. When in doubt between `other` and `rejection`, prefer `other`. False-positive rejection is worse than miscategorizing as `other`.
+
+For each thread, output an entry:
 
 ```json
 {
@@ -44,24 +56,19 @@ For each thread (using its first message), produce an entry:
   "subject": "<subject>",
   "snippet": "<message snippet>",
   "body": "<plain text body, max 4000 chars>",
-  "kind": "<one of: ats-ack | company-ack | rejection | interview | offer | security-code | other>"
+  "intent": "<one of the values above>",
+  "confidence": "high" | "medium" | "low",
+  "reason": "<one short sentence explaining why this intent — for debugging>"
 }
 ```
 
-Classification rules (apply in order, first match wins):
-- subject contains "security code" or "verification code" → `security-code`
-- subject + body mentions any of: "we have decided", "we've decided", "moving forward with other candidates", "won't be moving forward", "decided not to move forward", "decided to pursue other candidates", "unfortunately, we", "no longer being considered", "wasn't selected" → `rejection`
-- subject contains "offer letter" / "pleased to extend" / "extending an offer" / "formal offer" → `offer`
-- subject contains "interview" / "schedule a call" / "next steps" / "find a time" / "Calendly" → `interview`
-- sender domain ends in `@us.greenhouse-mail.io`, `@greenhouse-mail.io`, `@ashbyhq.com`, `@hire.lever.co`, `@myworkday.com`, `@workable.com`, `@rippling.com`, `@jobvite.com`, `@icims.com`, `@breezyhr.com`, `@smartrecruiters.com`, `@teamtailor.com`, `@bamboohr.com` → `ats-ack`
-- subject starts with "Thank you for applying" / "Thank you for your application" / "Application received" → `company-ack`
-- otherwise → `other`
+`confidence` is your honest read. `low` means you're guessing — the UI will show a "?" indicator. `reason` is for the user to spot-check; keep it under 80 characters.
 
 ## Step 6 — Group by company (NEVER drop)
 
 Match each thread to a company using these heuristics in order — first match wins. **You MUST NOT drop any thread.** If every heuristic fails, bucket the thread under `Unknown — <sender-domain>` so the user can see it in the UI and triage manually.
 
-1. Subject regex `applying to ([A-Z][\w &.\-']+)` (case-insensitive). Strip trailing punctuation/emoji from the matched name. Use the captured group as the company.
+1. Subject regex `applying to ([A-Z][\w &.\-']+)` (case-insensitive). Strip trailing punctuation/emoji. Use the captured group.
 2. Subject regex `application (?:to|with|at|for) ([A-Z][\w &.\-']+)`.
 3. Subject regex `(?:update on|regarding) your application (?:at|to|for|with) ([A-Z][\w &.\-']+)`.
 4. Subject regex `interest in ([A-Z][\w &.\-']+)`.
@@ -80,12 +87,7 @@ Write the result to the path resolved in Step 1 (overwrite). Format:
 {
   "fetchedAt": "<current ISO timestamp>",
   "lookbackDays": 180,
-  "queries": [
-    "<query 1>",
-    "<query 2>",
-    "<query 3>",
-    "<query 4>"
-  ],
+  "queries": ["<q1>", "<q2>", "<q3>", "<q4>"],
   "byCompany": {
     "<Company>": [<threads>],
     ...
@@ -97,4 +99,4 @@ Use 2-space indent. Make the JSON valid. Include the `Unknown — *` buckets if 
 
 ## Step 8 — Done
 
-Print a one-line summary: `refreshed: <N companies>, <M threads>, <K rejections>, <U unknown> @ <ISO date>`. Then stop.
+Print a one-line summary: `refreshed: <N companies>, <M threads>, <K rejections>, <U unknown>, <L low-confidence> @ <ISO date>`. Then stop.

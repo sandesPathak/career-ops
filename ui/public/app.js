@@ -53,6 +53,7 @@ const state = {
   msgFilter: 'all',
   activeFilter: 'all',
   expandedThread: null,
+  expandedFeed: null,
   sort: 'score',
   view: 'dashboard',
   selectedNum: null,
@@ -344,20 +345,37 @@ function renderFeedRow(e) {
   const meta = EVENT_META[e.type] || EVENT_META.email;
   const time = e.ts ? new Date(e.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
   const score = (e.score != null && !Number.isNaN(e.score)) ? `<span class="feed-score">${e.score.toFixed(1)}</span>` : '';
-  const summary = e.summary ? `<div class="feed-summary">${escape(e.summary)}</div>` : '';
+  // Confidence indicator: low/medium-confidence Claude calls + all regex fallbacks get a "?".
+  // Hover to see Claude's `reason` (or "(regex fallback — re-run Refresh to upgrade)").
+  let confTip = '';
+  if (e.classifiedBy === 'regex') confTip = `title="Regex fallback — re-run Refresh emails to let Claude classify this thread."`;
+  else if (e.confidence === 'low' || e.confidence === 'medium') {
+    const reason = e.reason ? e.reason.replace(/"/g, '&quot;') : '';
+    confTip = `title="${e.confidence} confidence: ${reason}"`;
+  } else if (e.reason) confTip = `title="${e.reason.replace(/"/g, '&quot;')}"`;
+  const confMark = (e.classifiedBy === 'regex' || e.confidence === 'low') ? '<span class="feed-conf">?</span>' : '';
+  const isExpanded = state.expandedFeed === e.id;
   const subj = e.subject && e.source === 'email' ? `<div class="feed-summary feed-subj">${escape(e.subject)}</div>` : '';
+  const summaryText = isExpanded && e.body ? e.body : (e.summary || '');
+  const summary = summaryText
+    ? `<div class="feed-summary ${isExpanded ? 'expanded' : ''}">${escape(summaryText)}</div>`
+    : '';
+  const expandableHint = e.body && !isExpanded
+    ? `<button class="feed-expand" data-act="expand" data-id="${escape(e.id)}" title="Show full email">▾ show full</button>`
+    : (isExpanded ? `<button class="feed-expand" data-act="expand" data-id="${escape(e.id)}" title="Collapse">▴ collapse</button>` : '');
   const actBtns = [];
   if (e.urls && e.urls.length) actBtns.push(`<button class="btn-mini" data-act="jd" data-id="${escape(e.id)}">Open posting</button>`);
   if (e.reportPath) actBtns.push(`<button class="btn-mini" data-act="report" data-id="${escape(e.id)}">Report</button>`);
   if (e.num) actBtns.push(`<button class="btn-mini" data-act="open-row" data-num="${e.num}">Details</button>`);
   return `
-    <div class="feed-row" data-tone="${meta.tone}">
+    <div class="feed-row ${isExpanded ? 'expanded' : ''}" data-tone="${meta.tone}">
       <div class="feed-time">${time}</div>
-      <div class="feed-chip ${meta.tone}">${meta.lbl}</div>
+      <div class="feed-chip ${meta.tone}" ${confTip}>${meta.lbl}${confMark}</div>
       <div class="feed-body">
         <div class="feed-title">${escape(e.company)}${e.role ? ` <span class="feed-role">· ${escape(e.role)}</span>` : ''} ${score}</div>
         ${subj}
         ${summary}
+        ${expandableHint}
       </div>
       <div class="feed-actions">${actBtns.join('')}</div>
     </div>
@@ -370,6 +388,11 @@ function onFeedAction(ev, btn) {
   const num = btn.dataset.num ? Number(btn.dataset.num) : null;
   const e = state.feed.find((x) => x.id === id);
   const r = num ? state.rows.find((x) => x.num === num) : (e ? state.rows.find((x) => x.num === e.num) : null);
+  if (btn.dataset.act === 'expand') {
+    state.expandedFeed = state.expandedFeed === id ? null : id;
+    renderDashboard();
+    return;
+  }
   if (btn.dataset.act === 'jd') {
     const url = (e && e.urls && e.urls[0]) || (r && r.urls && r.urls[0]);
     if (url) window.open(url, '_blank', 'noopener,noreferrer');
