@@ -1,0 +1,162 @@
+{
+  "_meta": {
+    "purpose": "Honest-answer bank for ATS screening questions. apply-shared.mjs#matchScreening looks these up before any form is filled, so auto-reject conflicts (citizenship, location, YoE floor) surface BEFORE we tailor a CV.",
+    "actions": {
+      "fill": "Fill verbatim, proceed to submit.",
+      "fill_and_flag": "Fill honestly but warn the operator — the honest answer may auto-reject.",
+      "discard": "Honest answer is a hard disqualifier; abort apply, mark Discarded."
+    },
+    "instructions": "Copy to screening-questions.json and replace the {placeholder} fields with your real answers. Reference values come from config/profile.yml — keep them in sync.",
+    "owner": "apply-shared.mjs"
+  },
+  "questions": [
+    {
+      "id": "us_citizen_required",
+      "patterns": [
+        "are you a us citizen",
+        "must be a us citizen",
+        "us citizenship required",
+        "are you a citizen of the united states",
+        "us person under itar"
+      ],
+      "honest_answer": "{Yes/No — see config/profile.yml § work_authorization. If not a US citizen, this typically auto-discards.}",
+      "action": "discard",
+      "note": "If your work_authorization is anything other than US Citizen, set action=discard. See modes/_shared.md eligibility rule."
+    },
+    {
+      "id": "active_security_clearance",
+      "patterns": [
+        "active security clearance",
+        "ts/sci",
+        "top secret clearance",
+        "secret clearance",
+        "public trust"
+      ],
+      "honest_answer": "{Yes/No — clearance status from config/profile.yml § work_authorization.clearance}",
+      "action": "discard",
+      "note": "If you don't hold an active clearance, this auto-discards on clearance-required postings."
+    },
+    {
+      "id": "nyc_hybrid_required",
+      "patterns": [
+        "able to work out of our nyc office",
+        "nyc office with flexibility",
+        "located in.*new york",
+        "willing to commute to nyc"
+      ],
+      "honest_answer": "{Yes/No — based on config/profile.yml § location_policy. If not NYC and not willing to relocate, answer No and let the form gate handle it.}",
+      "action": "fill_and_flag",
+      "note": "Many NYC-or-Remote postings have this binary screen; honest No may auto-reject if Remote isn't truly an option."
+    },
+    {
+      "id": "sf_bay_or_nyc_only",
+      "patterns": [
+        "located in san francisco bay area or nyc",
+        "located in sf or new york",
+        "based in san francisco bay or new york"
+      ],
+      "honest_answer": "{No — outside SF/NYC per config/profile.yml § location_policy.}",
+      "action": "discard",
+      "note": "If 'Remote' in posting actually means SF/NYC region-only, the role fails location gate."
+    },
+    {
+      "id": "us_only_timezone",
+      "patterns": [
+        "located in.*gmt to gmt\\+",
+        "currently only hire in.*timezones",
+        "europe.*emea only",
+        "must be located in europe"
+      ],
+      "honest_answer": "{Your timezone from config/profile.yml § location.timezone}",
+      "action": "discard",
+      "note": "Non-matching timezone restriction = location DISCARD."
+    },
+    {
+      "id": "h1b_sponsorship_required",
+      "patterns": [
+        "require.*h1.?b transfer",
+        "require.*h1.?b sponsorship",
+        "will you require visa sponsorship",
+        "require sponsorship.*employment"
+      ],
+      "honest_answer": "{Yes/No — from config/profile.yml § work_authorization.requires_sponsorship}",
+      "action": "fill"
+    },
+    {
+      "id": "authorized_us",
+      "patterns": [
+        "authorized to work in the united states",
+        "authorized to work in the us",
+        "authorized to work in the country",
+        "legally authorized to work"
+      ],
+      "honest_answer": "{Yes/No — from config/profile.yml § work_authorization.authorized_us}",
+      "action": "fill"
+    },
+    {
+      "id": "non_compete",
+      "patterns": [
+        "non-compete",
+        "restrictive agreement",
+        "non-solicitation"
+      ],
+      "honest_answer": "{Yes/No — your current employment situation}",
+      "action": "fill"
+    },
+    {
+      "id": "yoe_floor_exceeded",
+      "patterns": [
+        "minimum.*years",
+        "\\d+\\+ years",
+        "\\d+ or more years"
+      ],
+      "honest_answer": "{Total YoE from config/profile.yml § candidate.yoe_total. If the JD floor exceeds this, action=discard.}",
+      "action": "discard",
+      "note": "Compare JD floor to candidate.yoe_total. YoE-floor mismatches are common."
+    },
+    {
+      "id": "salary_expectation",
+      "patterns": [
+        "salary expectation",
+        "expected base salary",
+        "compensation expectation",
+        "desired salary"
+      ],
+      "honest_answer": "{Anchor from config/profile.yml § compensation.target_range. Format: '$NNN,NNN base; flexible on total comp + equity.'}",
+      "action": "fill",
+      "note": "Anchor at top of target_range; flex with equity. Many forms also accept numeric (e.g., 185000)."
+    },
+    {
+      "id": "fed_govt_customer_acknowledgement",
+      "patterns": [
+        "willing to work on us federal contract",
+        "willing to work on department of defense",
+        "support government customers"
+      ],
+      "honest_answer": "{Yes/No — typically requires US citizenship; see config/profile.yml § work_authorization}",
+      "action": "discard",
+      "note": "Federal-customer or DoD-contract postings typically auto-discard non-citizens."
+    },
+    {
+      "id": "worked_at_company_before",
+      "patterns": [
+        "ever worked for",
+        "previously employed by",
+        "worked at.*before"
+      ],
+      "honest_answer": "{Yes/No — your employment history}",
+      "action": "fill"
+    },
+    {
+      "id": "bachelors_stem",
+      "patterns": [
+        "bachelor.*degree.*computer science",
+        "bachelor.*degree.*stem",
+        "bachelor.*degree.*engineering",
+        "4-year degree.*computer science"
+      ],
+      "honest_answer": "{Yes/No — from your CV/profile}",
+      "action": "fill"
+    }
+  ]
+}

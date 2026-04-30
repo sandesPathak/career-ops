@@ -1,0 +1,80 @@
+# Personal-data leak detector (test-all.mjs reads this)
+.leak-patterns.txt
+
+# Personal data (user fills these)
+cv.md
+data/applications.md
+data/pipeline.md
+data/scan-history.tsv
+reports/*.md
+reports/_archive/
+!reports/.gitkeep
+output/*
+!output/.gitkeep
+batch/logs/*
+!batch/logs/.gitkeep
+batch/batch-state.tsv
+batch/batch-input.tsv
+batch/tracker-additions/**/*.tsv
+!batch/tracker-additions/.gitkeep
+jds/*
+!jds/.gitkeep
+
+# User config and customization (never auto-updated)
+config/profile.yml
+portals.yml
+modes/_profile.md
+.update-dismissed
+.update-lock
+
+# Secrets (never commit — use .env.example as template)
+.env
+
+# Generated
+.resolved-prompt-*
+node_modules/
+bun.lock
+
+# Python venv (created by `npm run setup:python` for scan-aggregators.mjs)
+.venv/
+__pycache__/
+*.pyc
+
+# OS
+.DS_Store
+*.mov
+*.mp4
+
+# Claude Code local
+.claude/settings.local.json
+.claude/memory/
+career-dashboard
+package-lock.json
+
+# Transient agent caches
+.playwright-mcp/
+.superpowers/
+
+# UI runtime + scheduler artifacts (real logs live in ~/Library/Application Support)
+logs/
+.claude/scheduled_tasks.lock
+
+# Personal/private user data (never auto-updated)
+data/deferred.md
+data/discover-history.tsv
+data/discover-suggestions.md
+data/emails-cache.json
+data/scan-sessions/
+
+# Personal answer banks — schema lives in *.example.* templates (tracked); real answers gitignored
+data/essays/*.json
+!data/essays/example.json
+cv-do-not-claim.txt
+screening-questions.json
+
+# One-shot / experiment scripts — hardcoded URLs/names/companies. Use oneshots/ for new ones.
+oneshots/
+zapier-oneshot.mjs
+triage-*.mjs
+*-combos.mjs
+*-oneshot.mjs

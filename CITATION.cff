@@ -1,0 +1,16 @@
+cff-version: 1.2.0
+message: "If you use this fork of career-ops, please cite it as below. The original project is by Santiago Fernández de Valderrama."
+title: "career-ops (sandesPathak fork)"
+type: software
+authors:
+  - family-names: "Pathak"
+    given-names: "Sandesh"
+repository-code: "https://github.com/sandesPathak/career-ops"
+license: MIT
+references:
+  - type: software
+    title: "Career-Ops: AI-Powered Job Search Pipeline"
+    authors:
+      - family-names: "Fernández de Valderrama"
+        given-names: "Santiago"
+    repository-code: "https://github.com/santifer/career-ops"
